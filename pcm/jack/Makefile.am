@@ -6,3 +6,5 @@ AM_CFLAGS = -Wall -g @ALSA_CFLAGS@ @JACK_CFLAGS@
 libasound_module_pcm_jack_la_SOURCES = pcm_jack.c
 libasound_module_pcm_jack_la_LDFLAGS = -module -avoid-version -export-dynamic
 libasound_module_pcm_jack_la_LIBADD = @ALSA_LIBS@ @JACK_LIBS@
+
+EXTRA_DIST = README
