@@ -1,5 +1,5 @@
 AC_INIT(pcm/oss/pcm_oss.c)
-AM_INIT_AUTOMAKE(alsa-plugins, 1.0.9rc1)
+AM_INIT_AUTOMAKE(alsa-plugins, 1.0.9rc2)
 AC_PREFIX_DEFAULT(/usr)
 
 AC_PROG_CC
