@@ -1,5 +1,5 @@
 /*
- * OSS -> ALSA I/O plugin
+ * ALSA <-> OSS PCM I/O plugin
  *
  * Copyright (c) 2005 by Takashi Iwai <tiwai@suse.de>
  *
@@ -232,20 +232,18 @@ static int oss_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 static int oss_hw_constraint(snd_pcm_oss_t *oss)
 {
 	snd_pcm_ioplug_t *io = &oss->io; 
-	snd_pcm_access_t access;
+	static snd_pcm_access_t access_list[] = {
+		SND_PCM_ACCESS_RW_INTERLEAVED,
+		SND_PCM_ACCESS_MMAP_INTERLEAVED
+	};
 	unsigned int nformats;
 	unsigned int format[5];
 	unsigned int nchannels;
 	unsigned int channel[6];
-	/* period bytes must be power of two */
-	static unsigned int period_bytes_list[] = {
+	/* period and buffer bytes must be power of two */
+	static unsigned int bytes_list[] = {
 		1U<<8, 1U<<9, 1U<<10, 1U<<11, 1U<<12, 1U<<13, 1U<<14, 1U<<15,
 		1U<<16, 1U<<17, 1U<<18, 1U<<19, 1U<<20, 1U<<21, 1U<<22, 1U<<23
-	};
-	/* some apps (e.g. quake3) prefer periods to be power of two */
-	static unsigned int periods_list[] = {
-		1U<<1, 1U<<2, 1U<<3, 1U<<4, 1U<<5, 1U<<6, 1U<<7, 1U<<8,
-		1U<<9, 1U<<10, 1U<<11, 1U<<12,
 	};
 	int i, err, tmp;
 
@@ -256,10 +254,9 @@ static int oss_hw_constraint(snd_pcm_oss_t *oss)
 			fprintf(stderr, "*** OSS: trigger is not supported!\n");
 	}
 
-	/* access type - rw interleaved only */
-	access = SND_PCM_ACCESS_RW_INTERLEAVED;
+	/* access type - interleaved only */
 	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_ACCESS,
-						 1, &access)) < 0)
+						 ARRAY_SIZE(access_list), access_list)) < 0)
 		return err;
 
 	/* supported formats */
@@ -303,15 +300,17 @@ static int oss_hw_constraint(snd_pcm_oss_t *oss)
 		return err;
 
 	/* period size (in power of two) */
-	if ((err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
-						 ARRAY_SIZE(period_bytes_list),
-						 period_bytes_list)) < 0)
+	err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
+					    ARRAY_SIZE(bytes_list), bytes_list);
+	if (err < 0)
 		return err;
 	/* periods */
-	/* err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIODS, 1<<1, 1<<12); */
-	err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_PERIODS,
-					    ARRAY_SIZE(periods_list),
-					    periods_list);
+	err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIODS, 2, 1024);
+	if (err < 0)
+		return err;
+	/* buffer size (in power of two) */
+	err = snd_pcm_ioplug_set_param_list(io, SND_PCM_IOPLUG_HW_BUFFER_BYTES,
+					    ARRAY_SIZE(bytes_list), bytes_list);
 	if (err < 0)
 		return err;
 
@@ -391,7 +390,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(oss)
 		SNDERR("Cannot open device %s", device);
 		goto error;
 	}
-	oss->io.name = "ALSA -> OSS PCM Plugin";
+	oss->io.name = "ALSA <-> OSS PCM I/O Plugin";
 	oss->io.poll_fd = oss->fd;
 	oss->io.poll_events = stream == SND_PCM_STREAM_PLAYBACK ? POLLOUT : POLLIN;
 	oss->io.mmap_rw = 0;
