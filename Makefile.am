@@ -1,4 +1,5 @@
 SUBDIRS = pcm
+EXTRA_DIST = cvscompile version
 AUTOMAKE_OPTIONS = foreign
 
 dist-hook:
