@@ -1,0 +1,2 @@
+SUBDIRS = pcm
+AUTOMAKE_OPTIONS = foreign

@@ -1,0 +1,21 @@
+AC_INIT(pcm/oss/pcm_oss.c)
+AM_INIT_AUTOMAKE(alsa-plugins, 1.0.8)
+AC_PREFIX_DEFAULT(/usr)
+
+AC_PROG_CC
+AC_PROG_INSTALL
+AC_DISABLE_STATIC
+AM_PROG_LIBTOOL
+AC_HEADER_STDC
+
+PKG_CHECK_MODULES(ALSA, alsa >= 1.0.8)
+PKG_CHECK_MODULES(JACK, jack >= 0.99)
+
+AC_OUTPUT([
+	Makefile
+	pcm/Makefile
+	pcm/oss/Makefile
+	pcm/jack/Makefile
+])
+
+
