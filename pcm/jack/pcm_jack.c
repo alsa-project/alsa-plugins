@@ -1,7 +1,8 @@
 /*
  *  PCM - JACK plugin
- *  Copyright (c) 2003 by Maarten de Boer <mdeboer@iua.upf.es>
  *
+ *  Copyright (c) 2003 by Maarten de Boer <mdeboer@iua.upf.es>
+ *                2005 Takashi Iwai <tiwai@suse.de>
  *
  *   This library is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU Lesser General Public License as
@@ -37,10 +38,8 @@ typedef struct {
 	int fd;
 	int activated;		/* jack is activated? */
 
-	char** playback_ports;
-	char** capture_ports;
-	unsigned int playback_ports_n;
-	unsigned int capture_ports_n;
+	char **port_names;
+	unsigned int num_ports;
 	unsigned int hw_ptr;
 	unsigned int sample_bits;
 
@@ -54,23 +53,17 @@ typedef struct {
 static void snd_pcm_jack_free(snd_pcm_jack_t *jack)
 {
 	if (jack) {
-		unsigned int k;
+		unsigned int i;
 		if (jack->client)
 			jack_client_close(jack->client);
-		if (jack->playback_ports) {
-			for (k = 0; k < jack->playback_ports_n; k++)
-				if (jack->playback_ports[k])
-					free(jack->playback_ports[k]);
-			free(jack->playback_ports);
+		if (jack->port_names) {
+			for (i = 0; i < jack->num_ports; i++)
+				free(jack->port_names[i]);
+			free(jack->port_names);
 		}
-		if (jack->capture_ports) {
-			for (k = 0; k < jack->capture_ports_n; k++)
-				if (jack->capture_ports[k])
-					free(jack->capture_ports[k]);
-			free(jack->capture_ports);
-		}
-		if (jack->areas)
-			free(jack->areas);
+		close(jack->fd);
+		close(jack->io.poll_fd);
+		free(jack->areas);
 		free(jack);
 	}
 }
@@ -86,7 +79,7 @@ static int snd_pcm_jack_poll_revents(snd_pcm_ioplug_t *io,
 				     struct pollfd *pfds, unsigned int nfds,
 				     unsigned short *revents)
 {
-	char buf[1];
+	static char buf[1];
 	
 	assert(pfds && nfds == 1 && revents);
 
@@ -108,7 +101,7 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 	snd_pcm_jack_t *jack = io->private_data;
 	const snd_pcm_channel_area_t *areas;
 	snd_pcm_uframes_t xfer = 0;
-	char buf[1];
+	static char buf[1];
 	unsigned int channel;
 	
 	for (channel = 0; channel < io->channels; channel++) {
@@ -155,11 +148,13 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 
 static int snd_pcm_jack_prepare(snd_pcm_ioplug_t *io)
 {
+	snd_pcm_jack_t *jack = io->private_data;
 	unsigned int i;
 
-	snd_pcm_jack_t *jack = io->private_data;
-
 	jack->hw_ptr = 0;
+
+	if (jack->ports)
+		return 0;
 
 	jack->ports = calloc(io->channels, sizeof(jack_port_t*));
 
@@ -167,20 +162,20 @@ static int snd_pcm_jack_prepare(snd_pcm_ioplug_t *io)
 		char port_name[32];
 		if (io->stream == SND_PCM_STREAM_PLAYBACK) {
 
-			sprintf(port_name,"out_%03d\n",i);
-			jack->ports[i] = jack_port_register (jack->client, port_name,
-							     JACK_DEFAULT_AUDIO_TYPE,
-							     JackPortIsOutput, 0);
+			sprintf(port_name, "out_%03d\n", i);
+			jack->ports[i] = jack_port_register(jack->client, port_name,
+							    JACK_DEFAULT_AUDIO_TYPE,
+							    JackPortIsOutput, 0);
 		} else {
-			sprintf(port_name,"in__%03d\n",i);
-			jack->ports[i] = jack_port_register (jack->client, port_name,
-							     JACK_DEFAULT_AUDIO_TYPE,
-							     JackPortIsInput, 0);
+			sprintf(port_name, "in_%03d\n", i);
+			jack->ports[i] = jack_port_register(jack->client, port_name,
+							    JACK_DEFAULT_AUDIO_TYPE,
+							    JackPortIsInput, 0);
 		}
 	}
 
-	jack_set_process_callback (jack->client,
-				   (JackProcessCallback)snd_pcm_jack_process_cb, io);
+	jack_set_process_callback(jack->client,
+				  (JackProcessCallback)snd_pcm_jack_process_cb, io);
 	return 0;
 }
 
@@ -194,30 +189,19 @@ static int snd_pcm_jack_start(snd_pcm_ioplug_t *io)
 
 	jack->activated = 1;
 
-	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
-		for (i = 0; i < io->channels && i < jack->playback_ports_n; i++) {	
-			if ( jack->playback_ports[i]) {
-				if (jack_connect (jack->client, 
-					jack_port_name (jack->ports[i]), 
-					jack->playback_ports[i])) {
-					fprintf(stderr, "cannot connect %s to %s\n",
-						jack_port_name(jack->ports[i]),
-						jack->playback_ports[i]);
-					return -EIO;
-				}
+	for (i = 0; i < io->channels && i < jack->num_ports; i++) {
+		if (jack->port_names[i]) {
+			const char *src, *dst;
+			if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+				src = jack_port_name(jack->ports[i]);
+				dst = jack->port_names[i];
+			} else {
+				src = jack->port_names[i];
+				dst = jack_port_name(jack->ports[i]);
 			}
-		}
-	} else {
-		for (i = 0; i < io->channels && i < jack->capture_ports_n; i++) {	
-			if ( jack->capture_ports[i]) {
-				if (jack_connect (jack->client, 
-					jack->capture_ports[i],
-					jack_port_name (jack->ports[i]))) {
-					fprintf(stderr, "cannot connect %s to %s\n",
-						jack->capture_ports[i],
-						jack_port_name(jack->ports[i]));
-					return -EIO;
-				}
+			if (jack_connect(jack->client, src, dst)) {
+				fprintf(stderr, "cannot connect %s to %s\n", src, dst);
+				return -EIO;
 			}
 		}
 	}
@@ -227,23 +211,19 @@ static int snd_pcm_jack_start(snd_pcm_ioplug_t *io)
 
 static int snd_pcm_jack_stop(snd_pcm_ioplug_t *io)
 {
-#if 0
 	snd_pcm_jack_t *jack = io->private_data;
 	
 	if (jack->activated) {
-		printf("deactivate\n");
 		jack_deactivate(jack->client);
-		printf("deactivate done\n");
 		jack->activated = 0;
 	}
-	{
+#if 0
 	unsigned i;
 	for (i = 0; i < io->channels; i++) {
 		if (jack->ports[i]) {
 			jack_port_unregister(jack->client, jack->ports[i]);
 			jack->ports[i] = NULL;
 		}
-	}
 	}
 #endif
 	return 0;
@@ -290,10 +270,10 @@ static int jack_set_hw_constraint(snd_pcm_jack_t *jack)
 	return 0;
 }
 
-static int parse_ports(snd_config_t *conf, char*** ret_ports, int *ret_n)
+static int parse_ports(snd_pcm_jack_t *jack, snd_config_t *conf)
 {
 	snd_config_iterator_t i, next;
-	char** ports = NULL;
+	char **ports = NULL;
 	unsigned int cnt = 0;
 	unsigned int channel;
 
@@ -305,10 +285,10 @@ static int parse_ports(snd_config_t *conf, char*** ret_ports, int *ret_n)
 				continue;
 			cnt++;
 		}
-		ports = calloc(cnt,sizeof(char*));
-		for (channel = 0; channel < cnt; channel++)
-			ports[channel] = NULL;
-		
+		jack->port_names = ports = calloc(cnt, sizeof(char*));
+		if (ports == NULL)
+			return -ENOMEM;
+		jack->num_ports = cnt;
 		snd_config_for_each(i, next, conf) {
 			snd_config_t *n = snd_config_iterator_entry(i);
 			const char *id;
@@ -316,17 +296,12 @@ static int parse_ports(snd_config_t *conf, char*** ret_ports, int *ret_n)
 
 			if (snd_config_get_id(n, &id) < 0)
 				continue;
-
 			channel = atoi(id);
-
 			if (snd_config_get_string(n, &port) < 0)
 				continue;
-
 			ports[channel] = port ? strdup(port) : NULL;
 		}
 	}
-	*ret_ports = ports;
-	*ret_n = cnt;
 	return 0;
 }
 
@@ -342,29 +317,21 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 	char jack_client_name[32];
 	
 	assert(pcmp);
-	jack = calloc(1, sizeof(snd_pcm_jack_t));
+	jack = calloc(1, sizeof(*jack));
 	if (!jack)
 		return -ENOMEM;
 
-	err = parse_ports(playback_conf, &jack->playback_ports, &jack->playback_ports_n);
+	err = parse_ports(jack, stream == SND_PCM_STREAM_PLAYBACK ?
+			  playback_conf : capture_conf);
 	if (err) {
 		snd_pcm_jack_free(jack);
 		return err;
 	}
 
-	err = parse_ports(capture_conf, &jack->capture_ports, &jack->capture_ports_n);
-	if (err) {
-		snd_pcm_jack_free(jack);
-		return err;
-	}
-
-	if (stream == SND_PCM_STREAM_PLAYBACK)
-		jack->channels = jack->playback_ports_n;
-	else
-		jack->channels = jack->capture_ports_n;
-
+	jack->channels = jack->num_ports;
 	if (jack->channels == 0) {
-		SNDERR("define the %s_ports section\n", stream == SND_PCM_STREAM_PLAYBACK ? "playback" : "capture");
+		SNDERR("define the %s_ports section",
+		       stream == SND_PCM_STREAM_PLAYBACK ? "playback" : "capture");
 		snd_pcm_jack_free(jack);
 		return -EINVAL;
 	}
@@ -378,7 +345,7 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 
 	jack->client = jack_client_new(jack_client_name);
 
-	if (jack->client==0) {
+	if (jack->client == 0) {
 		snd_pcm_jack_free(jack);
 		return -ENOENT;
 	}
@@ -393,7 +360,7 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 	
 	jack->fd = fd[0];
 
-	jack->io.name = "ALSA -> JACK PCM Plugin";
+	jack->io.name = "ALSA <-> JACK PCM I/O Plugin";
 	jack->io.callback = &jack_pcm_callback;
 	jack->io.private_data = jack;
 	jack->io.poll_fd = fd[1];
@@ -452,10 +419,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(jack)
 		return -EINVAL;
 	}
 
-	err = snd_pcm_jack_open(pcmp, name, 
-				playback_conf,
-				capture_conf,
-				stream, mode);
+	err = snd_pcm_jack_open(pcmp, name, playback_conf, capture_conf, stream, mode);
 
 	return err;
 }
