@@ -360,6 +360,7 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 	
 	jack->fd = fd[0];
 
+	jack->io.version = SND_PCM_IOPLUG_VERSION;
 	jack->io.name = "ALSA <-> JACK PCM I/O Plugin";
 	jack->io.callback = &jack_pcm_callback;
 	jack->io.private_data = jack;

@@ -390,6 +390,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(oss)
 		SNDERR("Cannot open device %s", device);
 		goto error;
 	}
+
+	oss->io.version = SND_PCM_IOPLUG_VERSION;
 	oss->io.name = "ALSA <-> OSS PCM I/O Plugin";
 	oss->io.poll_fd = oss->fd;
 	oss->io.poll_events = stream == SND_PCM_STREAM_PLAYBACK ? POLLOUT : POLLIN;
