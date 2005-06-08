@@ -8,7 +8,7 @@ AC_DISABLE_STATIC
 AM_PROG_LIBTOOL
 AC_HEADER_STDC
 
-PKG_CHECK_MODULES(ALSA, alsa >= 1.0.8)
+PKG_CHECK_MODULES(ALSA, alsa >= 1.0.9)
 AC_CHECK_LIB(asound, snd_pcm_ioplug_create,,
 	     AC_ERROR([*** libasound has no external plugin SDK]), -ldl)
 
