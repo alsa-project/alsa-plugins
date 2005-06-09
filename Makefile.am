@@ -1,4 +1,4 @@
-SUBDIRS = pcm
+SUBDIRS = pcm ctl
 EXTRA_DIST = cvscompile version
 AUTOMAKE_OPTIONS = foreign
 

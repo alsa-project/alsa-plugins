@@ -21,6 +21,6 @@ AC_OUTPUT([
 	pcm/Makefile
 	pcm/oss/Makefile
 	pcm/jack/Makefile
+	ctl/Makefile
+	ctl/oss/Makefile
 ])
-
-
