@@ -7,4 +7,4 @@ libasound_module_ctl_oss_la_SOURCES = ctl_oss.c
 libasound_module_ctl_oss_la_LDFLAGS = -module -avoid-version -export-dynamic
 libasound_module_ctl_oss_la_LIBADD = @ALSA_LIBS@
 
-EXTRA_DIST = README
+#EXTRA_DIST = README
