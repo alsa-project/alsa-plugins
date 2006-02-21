@@ -1,4 +1,11 @@
-SUBDIRS = pcm ctl
+if HAVE_JACK
+JACKDIR = jack
+endif
+if HAVE_POLYP
+POLYPDIR = polyp
+endif
+
+SUBDIRS = oss $(JACKDIR) $(POLYPDIR) doc
 EXTRA_DIST = cvscompile version
 AUTOMAKE_OPTIONS = foreign
 

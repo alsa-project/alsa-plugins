@@ -1,4 +1,4 @@
-AC_INIT(pcm/oss/pcm_oss.c)
+AC_INIT(oss/pcm_oss.c)
 AM_INIT_AUTOMAKE(alsa-plugins, 1.0.10)
 AC_PREFIX_DEFAULT(/usr)
 
@@ -12,15 +12,18 @@ PKG_CHECK_MODULES(ALSA, alsa >= 1.0.9)
 AC_CHECK_LIB(asound, snd_pcm_ioplug_create,,
 	     AC_ERROR([*** libasound has no external plugin SDK]), -ldl)
 
-PKG_CHECK_MODULES(JACK, jack >= 0.98)
+PKG_CHECK_MODULES(JACK, jack >= 0.98, [HAVE_JACK=yes], [HAVE_JACK=no])
+AM_CONDITIONAL(HAVE_JACK, test x$HAVE_JACK = xyes)
+
+PKG_CHECK_MODULES(polypaudio, [polyplib polyplib-mainloop], [HAVE_POLYP=yes], [HAVE_POLYP=no])
+AM_CONDITIONAL(HAVE_POLYP, test x$HAVE_POLYP = xyes)
 
 SAVE_PLUGINS_VERSION
 
 AC_OUTPUT([
 	Makefile
-	pcm/Makefile
-	pcm/oss/Makefile
-	pcm/jack/Makefile
-	ctl/Makefile
-	ctl/oss/Makefile
+	oss/Makefile
+	jack/Makefile
+	polyp/Makefile
+	doc/Makefile
 ])
