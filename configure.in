@@ -15,7 +15,7 @@ AC_CHECK_LIB(asound, snd_pcm_ioplug_create,,
 PKG_CHECK_MODULES(JACK, jack >= 0.98, [HAVE_JACK=yes], [HAVE_JACK=no])
 AM_CONDITIONAL(HAVE_JACK, test x$HAVE_JACK = xyes)
 
-PKG_CHECK_MODULES(polypaudio, [polyplib polyplib-mainloop], [HAVE_POLYP=yes], [HAVE_POLYP=no])
+PKG_CHECK_MODULES(polypaudio, [polyplib], [HAVE_POLYP=yes], [HAVE_POLYP=no])
 AM_CONDITIONAL(HAVE_POLYP, test x$HAVE_POLYP = xyes)
 
 SAVE_PLUGINS_VERSION

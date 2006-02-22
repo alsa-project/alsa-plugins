@@ -234,7 +234,7 @@ int polyp_connect(snd_polyp_t *p, const char *server)
 
     assert(p && p->context && p->mainloop && (p->state == POLYP_STATE_INIT));
 
-    err = pa_context_connect(p->context, server, 1, NULL);
+    err = pa_context_connect(p->context, server, 0, NULL);
     if (err < 0)
         goto error;
 

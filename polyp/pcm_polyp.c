@@ -210,7 +210,7 @@ static snd_pcm_sframes_t polyp_write(snd_pcm_ioplug_t *io,
 
 	buf = (char *)areas->addr + (areas->first + areas->step * offset) / 8;
 
-    pa_stream_write(pcm->stream, buf, size * pcm->frame_size, NULL, 0);
+    pa_stream_write(pcm->stream, buf, size * pcm->frame_size, NULL, 0, 0);
 
     /* Make sure the buffer pointer is in sync */
     update_ptr(pcm);
@@ -245,7 +245,7 @@ static snd_pcm_sframes_t polyp_read(snd_pcm_ioplug_t *io,
 
 	dst_buf = (char *)areas->addr + (areas->first + areas->step * offset) / 8;
     while (remain_size > 0) {
-        pa_stream_peek(pcm->stream, (void**)&src_buf, &frag_length);
+        pa_stream_peek(pcm->stream, (const void**)&src_buf, &frag_length);
         if (frag_length == 0)
             break;
 
@@ -352,7 +352,7 @@ static int polyp_prepare(snd_pcm_ioplug_t *io)
     assert(pcm->stream);
 
     if (io->stream == SND_PCM_STREAM_PLAYBACK)
-        pa_stream_connect_playback(pcm->stream, pcm->device, &pcm->buffer_attr, 0, NULL);
+        pa_stream_connect_playback(pcm->stream, pcm->device, &pcm->buffer_attr, 0, NULL, NULL);
     else
         pa_stream_connect_record(pcm->stream, pcm->device, &pcm->buffer_attr, 0);
 
