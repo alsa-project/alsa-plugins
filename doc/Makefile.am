@@ -1,1 +1,1 @@
-EXTRA_DIST = README-pcm-oss
+EXTRA_DIST = README-pcm-oss REAMDE-jack README-polyp
