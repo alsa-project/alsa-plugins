@@ -48,6 +48,11 @@ typedef struct snd_ctl_polyp {
 #define SINK_VOL_NAME "Master Playback Volume"
 #define SINK_MUTE_NAME "Master Playback Switch"
 
+#define UPDATE_SINK_VOL     0x01
+#define UPDATE_SINK_MUTE    0x02
+#define UPDATE_SOURCE_VOL   0x04
+#define UPDATE_SOURCE_MUTE  0x08
+
 static void sink_info_cb(pa_context *c, const pa_sink_info *i, int is_last, void *userdata)
 {
     snd_ctl_polyp_t *ctl = (snd_ctl_polyp_t*)userdata;
@@ -58,6 +63,11 @@ static void sink_info_cb(pa_context *c, const pa_sink_info *i, int is_last, void
 
     assert(ctl && i);
 
+    if (!!ctl->sink_muted != !!i->mute) {
+        ctl->sink_muted = i->mute;
+        ctl->updated |= UPDATE_SINK_MUTE;
+    }
+
     if (ctl->sink_volume.channels == i->volume.channels) {
         for (chan = 0;chan < ctl->sink_volume.channels;chan++)
             if (i->volume.values[chan] != ctl->sink_volume.values[chan])
@@ -66,15 +76,10 @@ static void sink_info_cb(pa_context *c, const pa_sink_info *i, int is_last, void
         if (chan == ctl->sink_volume.channels)
             return;
 
-        ctl->updated = 1;
+        ctl->updated |= UPDATE_SINK_VOL;
     }
 
     memcpy(&ctl->sink_volume, &i->volume, sizeof(pa_cvolume));
-
-    if (!!ctl->sink_muted != !!i->mute) {
-        ctl->sink_muted = i->mute;
-        ctl->updated = 1;
-    }
 }
 
 static void source_info_cb(pa_context *c, const pa_source_info *i, int is_last, void *userdata)
@@ -87,6 +92,11 @@ static void source_info_cb(pa_context *c, const pa_source_info *i, int is_last, 
 
     assert(ctl && i);
 
+    if (!!ctl->source_muted != !!i->mute) {
+        ctl->source_muted = i->mute;
+        ctl->updated |= UPDATE_SOURCE_MUTE;
+    }
+
     if (ctl->source_volume.channels == i->volume.channels) {
         for (chan = 0;chan < ctl->source_volume.channels;chan++)
             if (i->volume.values[chan] != ctl->source_volume.values[chan])
@@ -95,15 +105,10 @@ static void source_info_cb(pa_context *c, const pa_source_info *i, int is_last, 
         if (chan == ctl->source_volume.channels)
             return;
 
-        ctl->updated = 1;
+        ctl->updated |= UPDATE_SOURCE_VOL;
     }
 
     memcpy(&ctl->source_volume, &i->volume, sizeof(pa_cvolume));
-
-    if (!!ctl->source_muted != !!i->mute) {
-        ctl->source_muted = i->mute;
-        ctl->updated = 1;
-    }
 }
 
 static void event_cb(pa_context *c, pa_subscription_event_type_t t,
@@ -392,15 +397,33 @@ static int polyp_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id,
     unsigned int *event_mask)
 {
     snd_ctl_polyp_t *ctl = ext->private_data;
+    int offset;
 
     assert(ctl);
 
     if (!ctl->updated || !ctl->subscribed)
         return -EAGAIN;
 
-    polyp_elem_list(ext, 0, id);
+    if (ctl->source)
+        offset = 2;
+    else
+        offset = 0;
+
+    if (ctl->updated & UPDATE_SOURCE_VOL) {
+        polyp_elem_list(ext, 0, id);
+        ctl->updated &= ~UPDATE_SOURCE_VOL;
+    } else if (ctl->updated & UPDATE_SOURCE_MUTE) {
+        polyp_elem_list(ext, 1, id);
+        ctl->updated &= ~UPDATE_SOURCE_MUTE;
+    } else if (ctl->updated & UPDATE_SINK_VOL) {
+        polyp_elem_list(ext, offset + 0, id);
+        ctl->updated &= ~UPDATE_SINK_VOL;
+    } else if (ctl->updated & UPDATE_SINK_MUTE) {
+        polyp_elem_list(ext, offset + 1, id);
+        ctl->updated &= ~UPDATE_SINK_MUTE;
+    }
+
     *event_mask = SND_CTL_EVENT_MASK_VALUE;
-    ctl->updated = 0;
 
     return 1;
 }
@@ -416,11 +439,20 @@ static int polyp_ctl_poll_descriptors_count(snd_ctl_ext_t *ext)
 
 static int polyp_ctl_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd, unsigned int space)
 {
+    int num;
+
 	snd_ctl_polyp_t *ctl = ext->private_data;
 
     assert(ctl && ctl->p);
 
-    return polyp_poll_descriptors(ctl->p, pfd, space);
+    num = polyp_poll_descriptors(ctl->p, pfd, space);
+    if (num < 0)
+        return num;
+
+    if (ctl->updated)
+        pa_mainloop_wakeup(ctl->p->mainloop);
+
+    return num;
 }
 
 static int polyp_ctl_poll_revents(snd_ctl_ext_t *ext, struct pollfd *pfd, unsigned int nfds, unsigned short *revents)
