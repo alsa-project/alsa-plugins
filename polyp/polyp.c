@@ -182,6 +182,32 @@ int polyp_wait_operation(snd_polyp_t *p, pa_operation *o)
     return 0;
 }
 
+int polyp_wait_stream_state(snd_polyp_t *p, pa_stream *stream, pa_stream_state_t target)
+{
+    int err;
+    pa_stream_state_t state;
+
+    assert(p && stream && (p->state == POLYP_STATE_READY));
+
+    while (1) {
+        state = pa_stream_get_state(stream);
+
+        if (state == PA_STREAM_FAILED)
+            return -EIO;
+
+        if (state == target)
+            break;
+
+        p->state = POLYP_STATE_POLLING;
+        err = pa_mainloop_iterate(p->mainloop, 1, NULL);
+        p->state = POLYP_STATE_READY;
+        if (err < 0)
+            return -EIO;
+    }
+
+    return 0;
+}
+
 snd_polyp_t *polyp_new()
 {
     snd_polyp_t *p;

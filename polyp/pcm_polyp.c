@@ -335,6 +335,8 @@ static int polyp_prepare(snd_pcm_ioplug_t *io)
         return err;
 
     if (pcm->stream) {
+        pa_stream_disconnect(pcm->stream);
+        polyp_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_TERMINATED);
         pa_stream_unref(pcm->stream);
         pcm->stream = NULL;
     }
@@ -356,18 +358,12 @@ static int polyp_prepare(snd_pcm_ioplug_t *io)
     else
         pa_stream_connect_record(pcm->stream, pcm->device, &pcm->buffer_attr, 0);
 
-    while (1) {
-        state = pa_stream_get_state(pcm->stream);
-
-        if (state == PA_STREAM_FAILED)
-            goto error;
-
-        if (state == PA_STREAM_READY)
-            break;
-
-        err = pa_mainloop_iterate(pcm->p->mainloop, 1, NULL);
-        if (err < 0)
-            return -EIO;
+    err = polyp_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_READY);
+    if (err < 0) {
+        fprintf(stderr, "*** POLYPAUDIO: Unable to create stream.\n");
+        pa_stream_unref(pcm->stream);
+        pcm->stream = NULL;
+        return err;
     }
 
     pcm->last_size = 0;
@@ -375,12 +371,6 @@ static int polyp_prepare(snd_pcm_ioplug_t *io)
     pcm->offset = 0;
 
     return 0;
-
-error:
-    fprintf(stderr, "*** POLYPAUDIO: Unable to create stream.\n");
-    pa_stream_unref(pcm->stream);
-    pcm->stream = NULL;
-    return -EIO;
 }
 
 static int polyp_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
@@ -437,8 +427,11 @@ static int polyp_close(snd_pcm_ioplug_t *io)
 
     assert(pcm);
 
-    if (pcm->stream)
+    if (pcm->stream) {
+        pa_stream_disconnect(pcm->stream);
+        polyp_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_TERMINATED);
         pa_stream_unref(pcm->stream);
+    }
 
     if (pcm->p)
         polyp_free(pcm->p);

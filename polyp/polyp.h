@@ -48,6 +48,7 @@ int polyp_finish_poll(snd_polyp_t *p);
 int polyp_check_connection(snd_polyp_t *p);
 
 int polyp_wait_operation(snd_polyp_t *p, pa_operation *o);
+int polyp_wait_stream_state(snd_polyp_t *p, pa_stream *stream, pa_stream_state_t target);
 
 snd_polyp_t *polyp_new();
 void polyp_free(snd_polyp_t *p);
