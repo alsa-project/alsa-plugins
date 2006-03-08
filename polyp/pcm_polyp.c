@@ -314,9 +314,9 @@ static int polyp_pcm_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd, unsi
      */
     if (pcm->last_size >= pcm->buffer_attr.minreq) {
         if (io->stream == SND_PCM_STREAM_PLAYBACK)
-            *revents |= POLLIN;
-        else
             *revents |= POLLOUT;
+        else
+            *revents |= POLLIN;
     }
 
     return 0;
