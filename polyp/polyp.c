@@ -174,7 +174,9 @@ int polyp_wait_operation(snd_polyp_t *p, pa_operation *o)
     assert(p && o && (p->state == POLYP_STATE_READY));
 
     while (pa_operation_get_state(o) == PA_OPERATION_RUNNING) {
+        p->state = POLYP_STATE_POLLING;
         err = pa_mainloop_iterate(p->mainloop, 1, NULL);
+        p->state = POLYP_STATE_READY;
         if (err < 0)
             return err;
     }

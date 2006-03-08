@@ -20,6 +20,8 @@
 
 #include <sys/poll.h>
 
+#include <pthread.h>
+
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
 
@@ -41,6 +43,8 @@ typedef struct snd_ctl_polyp {
 
     int subscribed;
     int updated;
+
+    pthread_mutex_t mutex;
 } snd_ctl_polyp_t;
 
 #define SOURCE_VOL_NAME "Capture Volume"
@@ -159,10 +163,14 @@ static int polyp_elem_count(snd_ctl_ext_t *ext)
 
     assert(ctl);
 
+    pthread_mutex_lock(&ctl->mutex);
+
     if (ctl->source)
         count += 2;
     if (ctl->sink)
         count += 2;
+
+    pthread_mutex_unlock(&ctl->mutex);
 
     return count;
 }
@@ -176,6 +184,8 @@ static int polyp_elem_list(snd_ctl_ext_t *ext, unsigned int offset,
 
     snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
 
+    pthread_mutex_lock(&ctl->mutex);
+
     if (ctl->source) {
         if (offset == 0)
             snd_ctl_elem_id_set_name(id, SOURCE_VOL_NAME);
@@ -183,6 +193,8 @@ static int polyp_elem_list(snd_ctl_ext_t *ext, unsigned int offset,
             snd_ctl_elem_id_set_name(id, SOURCE_MUTE_NAME);
     } else
         offset += 2;
+
+    pthread_mutex_unlock(&ctl->mutex);
 
     if (offset == 2)
         snd_ctl_elem_id_set_name(id, SINK_VOL_NAME);
@@ -215,24 +227,28 @@ static int polyp_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
     int *type, unsigned int *acc, unsigned int *count)
 {
     snd_ctl_polyp_t *ctl = ext->private_data;
-    int err;
+    int err = 0;
 
-    assert(ctl && ctl->p);
+    assert(ctl);
 
     if (key > 3)
         return -EINVAL;
 
+    pthread_mutex_lock(&ctl->mutex);
+
+    assert(ctl->p);
+
     err = polyp_finish_poll(ctl->p);
     if (err < 0)
-        return err;
+        goto finish;
 
     err = polyp_check_connection(ctl->p);
     if (err < 0)
-        return err;
+        goto finish;
 
     err = polyp_update_volume(ctl);
     if (err < 0)
-        return err;
+        goto finish;
 
     if (key & 1)
         *type = SND_CTL_ELEM_TYPE_BOOLEAN;
@@ -248,7 +264,10 @@ static int polyp_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
     else
         *count = 1;
 
-    return 0;
+finish:
+    pthread_mutex_unlock(&ctl->mutex);
+
+    return err;
 }
 
 static int polyp_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
@@ -265,22 +284,26 @@ static int polyp_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
     long *value)
 {
     snd_ctl_polyp_t *ctl = ext->private_data;
-    int err, i;
+    int err = 0, i;
     pa_cvolume *vol = NULL;
 
-    assert(ctl && ctl->p);
+    assert(ctl);
+
+    pthread_mutex_lock(&ctl->mutex);
+
+    assert(ctl->p);
 
     err = polyp_finish_poll(ctl->p);
     if (err < 0)
-        return err;
+        goto finish;
 
     err = polyp_check_connection(ctl->p);
     if (err < 0)
-        return err;
+        goto finish;
 
     err = polyp_update_volume(ctl);
     if (err < 0)
-        return err;
+        goto finish;
 
     switch (key) {
     case 0:
@@ -296,7 +319,8 @@ static int polyp_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
         *value = !ctl->sink_muted;
         break;
     default:
-        return -EINVAL;
+        err = -EINVAL;
+        goto finish;
     }
 
     if (vol) {
@@ -304,30 +328,37 @@ static int polyp_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
             value[i] = vol->values[i];
     }
 
-    return 0;
+finish:
+    pthread_mutex_unlock(&ctl->mutex);
+
+    return err;
 }
 
 static int polyp_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
     long *value)
 {
     snd_ctl_polyp_t *ctl = ext->private_data;
-    int err, i;
+    int err = 0, i;
     pa_operation *o;
     pa_cvolume *vol = NULL;
 
-    assert(ctl && ctl->p && ctl->p->context);
+    assert(ctl);
+
+    pthread_mutex_lock(&ctl->mutex);
+
+    assert(ctl->p && ctl->p->context);
 
     err = polyp_finish_poll(ctl->p);
     if (err < 0)
-        return err;
+        goto finish;
 
     err = polyp_check_connection(ctl->p);
     if (err < 0)
-        return err;
+        goto finish;
 
     err = polyp_update_volume(ctl);
     if (err < 0)
-        return err;
+        goto finish;
 
     switch (key) {
     case 0:
@@ -335,7 +366,7 @@ static int polyp_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
         break;
     case 1:
         if (!!ctl->source_muted == !*value)
-            return 0;
+            goto finish;
         ctl->source_muted = !*value;
         break;
     case 2:
@@ -343,11 +374,12 @@ static int polyp_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
         break;
     case 3:
         if (!!ctl->sink_muted == !*value)
-            return 0;
+            goto finish;
         ctl->sink_muted = !*value;
         break;
     default:
-        return -EINVAL;
+        err = -EINVAL;
+        goto finish;
     }
 
     if (vol) {
@@ -356,7 +388,7 @@ static int polyp_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
                 break;
 
         if (i == vol->channels)
-            return 0;
+            goto finish;
 
         for (i = 0;i < vol->channels;i++)
             vol->values[i] = value[i];
@@ -379,9 +411,14 @@ static int polyp_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
     err = polyp_wait_operation(ctl->p, o);
     pa_operation_unref(o);
     if (err < 0)
-        return err;
+        goto finish;
 
-    return 1;
+    err = 1;
+
+finish:
+    pthread_mutex_unlock(&ctl->mutex);
+
+    return err;
 }
 
 static void polyp_subscribe_events(snd_ctl_ext_t *ext, int subscribe)
@@ -390,7 +427,11 @@ static void polyp_subscribe_events(snd_ctl_ext_t *ext, int subscribe)
 
     assert(ctl);
 
+    pthread_mutex_lock(&ctl->mutex);
+
     ctl->subscribed = !!(subscribe & SND_CTL_EVENT_MASK_VALUE);
+
+    pthread_mutex_unlock(&ctl->mutex);
 }
 
 static int polyp_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id,
@@ -398,11 +439,14 @@ static int polyp_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id,
 {
     snd_ctl_polyp_t *ctl = ext->private_data;
     int offset;
+    int err = -EAGAIN;
 
     assert(ctl);
 
+    pthread_mutex_lock(&ctl->mutex);
+
     if (!ctl->updated || !ctl->subscribed)
-        return -EAGAIN;
+        goto finish;
 
     if (ctl->source)
         offset = 2;
@@ -425,16 +469,30 @@ static int polyp_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id,
 
     *event_mask = SND_CTL_EVENT_MASK_VALUE;
 
-    return 1;
+    err = 0;
+
+finish:
+    pthread_mutex_unlock(&ctl->mutex);
+
+    return err;
 }
 
 static int polyp_ctl_poll_descriptors_count(snd_ctl_ext_t *ext)
 {
 	snd_ctl_polyp_t *ctl = ext->private_data;
+	int count;
 
-    assert(ctl && ctl->p);
+    assert(ctl);
 
-    return polyp_poll_descriptors_count(ctl->p);
+    pthread_mutex_lock(&ctl->mutex);
+
+    assert(ctl->p);
+
+    count = polyp_poll_descriptors_count(ctl->p);
+
+    pthread_mutex_unlock(&ctl->mutex);
+
+    return count;
 }
 
 static int polyp_ctl_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd, unsigned int space)
@@ -443,14 +501,21 @@ static int polyp_ctl_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd, un
 
 	snd_ctl_polyp_t *ctl = ext->private_data;
 
-    assert(ctl && ctl->p);
+    assert(ctl);
+
+    pthread_mutex_lock(&ctl->mutex);
+
+    assert(ctl->p);
 
     num = polyp_poll_descriptors(ctl->p, pfd, space);
     if (num < 0)
-        return num;
+        goto finish;
 
     if (ctl->updated)
         pa_mainloop_wakeup(ctl->p->mainloop);
+
+finish:
+    pthread_mutex_unlock(&ctl->mutex);
 
     return num;
 }
@@ -458,20 +523,27 @@ static int polyp_ctl_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd, un
 static int polyp_ctl_poll_revents(snd_ctl_ext_t *ext, struct pollfd *pfd, unsigned int nfds, unsigned short *revents)
 {
 	snd_ctl_polyp_t *ctl = ext->private_data;
-	int err;
+	int err = 0;
 
-    assert(ctl && ctl->p);
+    assert(ctl);
+
+    pthread_mutex_lock(&ctl->mutex);
+
+    assert(ctl->p);
 
     err = polyp_poll_revents(ctl->p, pfd, nfds, revents);
     if (err < 0)
-        return err;
+        goto finish;
 
     *revents = 0;
 
     if (ctl->updated)
         *revents |= POLLIN;
 
-    return 0;
+finish:
+    pthread_mutex_unlock(&ctl->mutex);
+
+    return err;
 }
 
 static void polyp_close(snd_ctl_ext_t *ext)
@@ -487,6 +559,8 @@ static void polyp_close(snd_ctl_ext_t *ext)
         free(ctl->source);
     if (ctl->sink)
         free(ctl->sink);
+
+    pthread_mutex_destroy(&ctl->mutex);
 
 	free(ctl);
 }
@@ -529,6 +603,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(polyp)
 	int err;
 	snd_ctl_polyp_t *ctl;
     pa_operation *o;
+    pthread_mutexattr_t mutexattr;
 
 	snd_config_for_each(i, next, conf) {
 		snd_config_t *n = snd_config_iterator_entry(i);
@@ -581,6 +656,11 @@ SND_CTL_PLUGIN_DEFINE_FUNC(polyp)
     err = polyp_start_thread(ctl->p);
     if (err < 0)
         goto error;
+
+    pthread_mutexattr_init(&mutexattr);
+    pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&ctl->mutex, &mutexattr);
+    pthread_mutexattr_destroy(&mutexattr);
 
     if (source)
         ctl->source = strdup(source);
