@@ -34,10 +34,10 @@ typedef struct snd_ctl_oss {
 	int fd;
 	int exclusive_input;
 	int stereo_mask;
-	int num_vol_ctls;
-	int vol_ctl[SOUND_MIXER_NRDEVICES];
-	int num_rec_items;
-	int rec_item[SOUND_MIXER_NRDEVICES];
+	unsigned int num_vol_ctls;
+	unsigned int vol_ctl[SOUND_MIXER_NRDEVICES];
+	unsigned int num_rec_items;
+	unsigned int rec_item[SOUND_MIXER_NRDEVICES];
 } snd_ctl_oss_t;
 
 static const char *vol_devices[SOUND_MIXER_NRDEVICES] = {
@@ -151,7 +151,7 @@ static snd_ctl_ext_key_t oss_find_elem(snd_ctl_ext_t *ext,
 {
 	snd_ctl_oss_t *oss = ext->private_data;
 	const char *name;
-	int i, key;
+	unsigned int i, key;
 
 	name = snd_ctl_elem_id_get_name(id);
 	if (! strcmp(name, "Capture Source")) {
@@ -197,7 +197,8 @@ static int oss_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	return 0;
 }
 
-static int oss_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
+static int oss_get_integer_info(snd_ctl_ext_t *ext ATTRIBUTE_UNUSED,
+				snd_ctl_ext_key_t key ATTRIBUTE_UNUSED,
 				long *imin, long *imax, long *istep)
 {
 	*istep = 0;
@@ -206,7 +207,8 @@ static int oss_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	return 0;
 }
 
-static int oss_get_enumerated_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
+static int oss_get_enumerated_info(snd_ctl_ext_t *ext,
+				   snd_ctl_ext_key_t key ATTRIBUTE_UNUSED,
 				   unsigned int *items)
 {
 	snd_ctl_oss_t *oss = ext->private_data;
@@ -215,8 +217,10 @@ static int oss_get_enumerated_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	return 0;
 }
 
-static int oss_get_enumerated_name(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
-				   unsigned int item, char *name, size_t name_max_len)
+static int oss_get_enumerated_name(snd_ctl_ext_t *ext,
+				   snd_ctl_ext_key_t key ATTRIBUTE_UNUSED,
+				   unsigned int item, char *name,
+				   size_t name_max_len)
 {
 	snd_ctl_oss_t *oss = ext->private_data;
 
@@ -248,10 +252,12 @@ static int oss_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long *val
 	return 0;
 }
 
-static int oss_read_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, unsigned int *items)
+static int oss_read_enumerated(snd_ctl_ext_t *ext,
+			       snd_ctl_ext_key_t key ATTRIBUTE_UNUSED,
+			       unsigned int *items)
 {
 	snd_ctl_oss_t *oss = ext->private_data;
-	int i, val;
+	unsigned int i, val;
 
 	*items = 0;
 	if (ioctl(oss->fd, SOUND_MIXER_READ_RECSRC, &val) < 0)
@@ -297,7 +303,8 @@ static int oss_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, long *va
 	}
 }
 
-static int oss_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
+static int oss_write_enumerated(snd_ctl_ext_t *ext,
+				snd_ctl_ext_key_t key ATTRIBUTE_UNUSED,
 				unsigned int *items)
 {
 	snd_ctl_oss_t *oss = ext->private_data;
@@ -313,8 +320,9 @@ static int oss_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 	return 1;
 }
 
-static int oss_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id,
-			  unsigned int *event_mask)
+static int oss_read_event(snd_ctl_ext_t *ext ATTRIBUTE_UNUSED,
+			  snd_ctl_elem_id_t *id ATTRIBUTE_UNUSED,
+			  unsigned int *event_mask ATTRIBUTE_UNUSED)
 {
 	return -EAGAIN;
 }

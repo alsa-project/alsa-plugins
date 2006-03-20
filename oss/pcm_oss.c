@@ -146,7 +146,8 @@ static int oss_prepare(snd_pcm_ioplug_t *io)
 	return 0;
 }
 
-static int oss_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
+static int oss_hw_params(snd_pcm_ioplug_t *io,
+			 snd_pcm_hw_params_t *params ATTRIBUTE_UNUSED)
 {
 	snd_pcm_oss_t *oss = io->private_data;
 	int i, tmp, err;
