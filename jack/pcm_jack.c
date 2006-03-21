@@ -75,7 +75,7 @@ static int snd_pcm_jack_close(snd_pcm_ioplug_t *io)
 	return 0;
 }
 
-static int snd_pcm_jack_poll_revents(snd_pcm_ioplug_t *io,
+static int snd_pcm_jack_poll_revents(snd_pcm_ioplug_t *io ATTRIBUTE_UNUSED,
 				     struct pollfd *pfds, unsigned int nfds,
 				     unsigned short *revents)
 {
