@@ -5,7 +5,7 @@ if HAVE_POLYP
 POLYPDIR = polyp
 endif
 
-SUBDIRS = oss $(JACKDIR) $(POLYPDIR) doc
+SUBDIRS = oss mix $(JACKDIR) $(POLYPDIR) doc
 EXTRA_DIST = cvscompile version
 AUTOMAKE_OPTIONS = foreign
 

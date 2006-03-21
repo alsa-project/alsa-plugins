@@ -25,5 +25,6 @@ AC_OUTPUT([
 	oss/Makefile
 	jack/Makefile
 	polyp/Makefile
+	mix/Makefile
 	doc/Makefile
 ])
