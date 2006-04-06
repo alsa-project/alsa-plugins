@@ -378,6 +378,11 @@ SND_PCM_PLUGIN_DEFINE_FUNC(oss)
 	}
 
 	oss = calloc(1, sizeof(*oss));
+	if (! oss) {
+		SNDERR("cannot allocate");
+		return -ENOMEM;
+	}
+
 	oss->device = strdup(device);
 	if (oss->device == NULL) {
 		SNDERR("cannot allocate");
