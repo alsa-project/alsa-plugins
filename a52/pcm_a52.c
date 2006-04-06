@@ -70,8 +70,7 @@ static void convert_data(struct a52_ctx *rec)
 	rec->filled = 0;
 }
 
-static int write_out_pending(snd_pcm_ioplug_t *io ATTRIBUTE_UNUSED,
-			     struct a52_ctx *rec)
+static int write_out_pending(snd_pcm_ioplug_t *io, struct a52_ctx *rec)
 {
 	int err, ofs = 0;
 
@@ -80,9 +79,11 @@ static int write_out_pending(snd_pcm_ioplug_t *io ATTRIBUTE_UNUSED,
 
 	while (rec->remain) {
 		err = snd_pcm_writei(rec->slave, rec->outbuf + ofs, rec->remain);
-		if (err < 0)
+		if (err < 0) {
+			if (err == -EPIPE)
+				io->state = SND_PCM_STATE_XRUN;
 			return err;
-		else if (! err)
+		} else if (! err)
 			break;
 		if (err < rec->remain)
 			ofs += (rec->remain - err) * 4;
@@ -210,12 +211,17 @@ static snd_pcm_sframes_t a52_pointer(snd_pcm_ioplug_t *io)
 	int err;
 
 	state = snd_pcm_state(rec->slave);
-	if (state == SND_PCM_STATE_RUNNING ||
-	    state == SND_PCM_STATE_DRAINING) {
+	switch (state) {
+	case SND_PCM_STATE_RUNNING:
+	case SND_PCM_STATE_DRAINING:
 		if ((err = snd_pcm_delay(rec->slave, &delay)) < 0)
 			return err;
-	} else
+		break;
+	case SND_PCM_STATE_XRUN:
+		return -EPIPE;
+	default:
 		return 0;
+	}
 
 	if (delay < 0 || delay >= (snd_pcm_sframes_t)rec->slave_buffer_size)
 		delay = 0;
