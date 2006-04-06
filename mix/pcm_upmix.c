@@ -290,8 +290,10 @@ static int upmix_init(snd_pcm_extplug_t *ext)
 
 	stype = (ext->slave_channels == 6) ? 1 : 0;
 	ctype = ext->channels - 1;
-	if (ctype < 0 || ctype >= 5)
+	if (ctype < 0 || ctype > 5) {
+		SNDERR("Invalid channel numbers for upmix: %d", ctype + 1);
 		return -EINVAL;
+	}
 	mix->upmix = do_upmix[ctype][stype];
 
 	if (mix->delay_ms) {
@@ -327,6 +329,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
 	snd_pcm_upmix_t *mix;
 	snd_config_t *sconf = NULL;
 	static unsigned int chlist[2] = {4, 6};
+	unsigned int channels = 0;
 	int delay = 10;
 	int err;
 
@@ -349,6 +352,20 @@ SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
 				return err;
 			}
 			delay = val;
+		}
+		if (strcmp(id, "channels") == 0) {
+			long val;
+			err = snd_config_get_integer(n, &val);
+			if (err < 0) {
+				SNDERR("Invalid value for %s", id);
+				return err;
+			}
+			channels = val;
+			if (channels != 4 && channels != 6 && channels != 0) {
+				SNDERR("channels must be 4, 6 or 0");
+				return -EINVAL;
+			}
+			continue;
 		}
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
@@ -382,9 +399,14 @@ SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
 	snd_pcm_extplug_set_param_minmax(&mix->ext,
 					 SND_PCM_EXTPLUG_HW_CHANNELS,
 					 1, 6);
-	snd_pcm_extplug_set_slave_param_list(&mix->ext,
-					     SND_PCM_EXTPLUG_HW_CHANNELS,
-					     2, chlist);
+	if (channels)
+		snd_pcm_extplug_set_slave_param_minmax(&mix->ext,
+						       SND_PCM_EXTPLUG_HW_CHANNELS,
+						       channels, channels);
+	else
+		snd_pcm_extplug_set_slave_param_list(&mix->ext,
+						     SND_PCM_EXTPLUG_HW_CHANNELS,
+						     2, chlist);
 	snd_pcm_extplug_set_param(&mix->ext, SND_PCM_EXTPLUG_HW_FORMAT,
 				  SND_PCM_FORMAT_S16);
 	snd_pcm_extplug_set_slave_param(&mix->ext, SND_PCM_EXTPLUG_HW_FORMAT,
