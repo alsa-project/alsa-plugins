@@ -19,6 +19,9 @@ AM_CONDITIONAL(HAVE_JACK, test x$HAVE_JACK = xyes)
 PKG_CHECK_MODULES(polypaudio, [polyplib], [HAVE_POLYP=yes], [HAVE_POLYP=no])
 AM_CONDITIONAL(HAVE_POLYP, test x$HAVE_POLYP = xyes)
 
+PKG_CHECK_MODULES(samplerate, [samplerate], [HAVE_SAMPLERATE=yes], [HAVE_SAMPLERATE=no])
+AM_CONDITIONAL(HAVE_SAMPLERATE, test x$HAVE_SAMPLERATE = xyes)
+
 SAVE_PLUGINS_VERSION
 
 AC_OUTPUT([
@@ -27,5 +30,6 @@ AC_OUTPUT([
 	jack/Makefile
 	polyp/Makefile
 	mix/Makefile
+	rate/Makefile
 	doc/Makefile
 ])

@@ -4,9 +4,12 @@ endif
 if HAVE_POLYP
 POLYPDIR = polyp
 endif
+if HAVE_SAMPLERATE
+SAMPLERATEDIR = rate
+endif
 
-SUBDIRS = oss mix $(JACKDIR) $(POLYPDIR) doc
-EXTRA_DIST = cvscompile version
+SUBDIRS = oss mix $(JACKDIR) $(POLYPDIR) $(SAMPLERATEDIR) doc
+EXTRA_DIST = cvscompile version COPYING.GPL
 AUTOMAKE_OPTIONS = foreign
 
 dist-hook:
