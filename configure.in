@@ -22,6 +22,27 @@ AM_CONDITIONAL(HAVE_POLYP, test x$HAVE_POLYP = xyes)
 PKG_CHECK_MODULES(samplerate, [samplerate], [HAVE_SAMPLERATE=yes], [HAVE_SAMPLERATE=no])
 AM_CONDITIONAL(HAVE_SAMPLERATE, test x$HAVE_SAMPLERATE = xyes)
 
+AC_ARG_WITH([avcodec-includedir],
+	[--with-avcodec-includedir=dir    AVcodec include directory],
+	[AVCODEC_CFLAGS="-I$withval"], [AVCODEC_CFLAGS=""])
+AC_ARG_WITH([avcodec-libdir],
+	[--with-avcodec-libdir=dir        AVcodec library directory],
+	[AVCODEC_LIBS="-L$withval"], [AVCODEC_LIBS=""])
+CFLAGS_saved="$CFLAGS"
+LDFLAGS_saved="$LDFLAGS"
+CFLAGS="$CFLAGS $AVCODEC_CFLAGS"
+LDFLAGS="$LDFLAGS $AVCODEC_LIBS"
+AC_SUBST(AVCODEC_CFLAGS)
+AVCODEC_LIBS="$AVCODEC_LIBS -lavcodec"
+AC_SUBST(AVCODEC_LIBS)
+AC_CHECK_LIB([avcodec], [avcodec_open], [HAVE_AVCODEC=yes], [HAVE_AVCODEC=no])
+if test x$HAVE_AVCODEC = xyes; then
+  AC_CHECK_HEADER([ffmpeg/avcodec.h], [], [HAVE_AVCODEC=no])
+fi
+AM_CONDITIONAL(HAVE_AVCODEC, test x$HAVE_AVCODEC = xyes)
+CFLAGS="$CFLAGS_saved"
+LDFLAGS="$LDFLAGS_saved"
+
 SAVE_PLUGINS_VERSION
 
 AC_OUTPUT([
@@ -31,5 +52,6 @@ AC_OUTPUT([
 	polyp/Makefile
 	mix/Makefile
 	rate/Makefile
+	a52/Makefile
 	doc/Makefile
 ])

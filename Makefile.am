@@ -7,8 +7,11 @@ endif
 if HAVE_SAMPLERATE
 SAMPLERATEDIR = rate
 endif
+if HAVE_AVCODEC
+A52DIR = a52
+endif
 
-SUBDIRS = oss mix $(JACKDIR) $(POLYPDIR) $(SAMPLERATEDIR) doc
+SUBDIRS = oss mix $(JACKDIR) $(POLYPDIR) $(SAMPLERATEDIR) $(A52DIR) doc
 EXTRA_DIST = cvscompile version COPYING.GPL
 AUTOMAKE_OPTIONS = foreign
 
