@@ -1,3 +1,5 @@
+syntax: glob
+
 configure
 config.log
 config.cache
@@ -20,7 +22,7 @@ missing
 autom4te.cache
 depcomp
 compile
-\.libs/
-\.deps/
-\.la$
-\.lo$
+.libs
+.deps
+*.la
+*.lo
