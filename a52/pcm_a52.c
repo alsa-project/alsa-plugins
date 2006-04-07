@@ -46,7 +46,7 @@ struct a52_ctx {
 	snd_pcm_hw_params_t *hw_params;
 };
 
-/* convert to SPDIF output */
+/* convert the PCM data to A52 stream in IEC958 */
 static void convert_data(struct a52_ctx *rec)
 {
 	int out_bytes;
@@ -54,22 +54,24 @@ static void convert_data(struct a52_ctx *rec)
 	out_bytes = avcodec_encode_audio(rec->avctx, rec->outbuf + 8,
 					 rec->outbuf_size - 8,
 					 rec->inbuf);
-	rec->outbuf[0] = 0x72;
-	rec->outbuf[1] = 0xf8;
-	rec->outbuf[2] = 0x1f;
-	rec->outbuf[3] = 0x4e;
-	rec->outbuf[4] = 0x01;
-	rec->outbuf[5] = rec->outbuf[5] & 7;
-	rec->outbuf[6] = (out_bytes * 8) & 0xff;
-	rec->outbuf[7] = ((out_bytes * 8) >> 8) & 0xff;
+	rec->outbuf[0] = 0xf8; /* sync words */
+	rec->outbuf[1] = 0x72;
+	rec->outbuf[2] = 0x4e;
+	rec->outbuf[3] = 0x1f;
+	rec->outbuf[4] = rec->outbuf[13] & 7; /* bsmod */
+	rec->outbuf[5] = 0x01; /* data type */
+	rec->outbuf[6] = ((out_bytes * 8) >> 8) & 0xff;
+	rec->outbuf[7] = (out_bytes * 8) & 0xff;
+	/* swap bytes for little-endian 16bit */
 	if (rec->format == SND_PCM_FORMAT_S16_LE)
-		swab(rec->outbuf + 8, rec->outbuf + 8, out_bytes);
+		swab(rec->outbuf, rec->outbuf, out_bytes + 8);
 	memset(rec->outbuf +  8 + out_bytes, 0,
 	       rec->outbuf_size - 8 - out_bytes);
 	rec->remain = rec->outbuf_size / 4;
 	rec->filled = 0;
 }
 
+/* write pending encoded data to the slave pcm */
 static int write_out_pending(snd_pcm_ioplug_t *io, struct a52_ctx *rec)
 {
 	int err, ofs = 0;
@@ -94,12 +96,18 @@ static int write_out_pending(snd_pcm_ioplug_t *io, struct a52_ctx *rec)
 	return 0;
 }
 
+/*
+ * drain callback
+ */
 static int a52_drain(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
 	int err;
 
 	if (rec->filled) {
+		if ((err = write_out_pending(io, rec)) < 0)
+			return err;
+		/* remaining data must be converted and sent out */
 		memset(rec->inbuf + rec->filled * io->channels, 0,
 		       (rec->avctx->frame_size - rec->filled) * io->channels * 2);
 		convert_data(rec);
@@ -111,6 +119,7 @@ static int a52_drain(snd_pcm_ioplug_t *io)
 	return 0;
 }
 
+/* check whether the areas consist of a continuous interleaved stream */
 static int check_interleaved(const snd_pcm_channel_area_t *areas,
 			     unsigned int channels)
 {
@@ -128,6 +137,11 @@ static int check_interleaved(const snd_pcm_channel_area_t *areas,
 	return 1;
 }
 
+/* Fill the input PCM to the internal buffer until a52 frames,
+ * then covert and write it out.
+ *
+ * Returns the number of processed frames.
+ */
 static int fill_data(snd_pcm_ioplug_t *io,
 		     const snd_pcm_channel_area_t *areas,
 		     unsigned int offset, unsigned int size,
@@ -181,6 +195,9 @@ static int fill_data(snd_pcm_ioplug_t *io,
 	return (int)size;
 }
 
+/*
+ * transfer callback
+ */
 static snd_pcm_sframes_t a52_transfer(snd_pcm_ioplug_t *io,
 				      const snd_pcm_channel_area_t *areas,
 				      snd_pcm_uframes_t offset,
@@ -203,6 +220,11 @@ static snd_pcm_sframes_t a52_transfer(snd_pcm_ioplug_t *io,
 	return result > 0 ? result : err;
 }
 
+/*
+ * pointer callback
+ *
+ * Calculate the current position from the delay of slave PCM
+ */
 static snd_pcm_sframes_t a52_pointer(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
@@ -218,6 +240,7 @@ static snd_pcm_sframes_t a52_pointer(snd_pcm_ioplug_t *io)
 			return err;
 		break;
 	case SND_PCM_STATE_XRUN:
+	case SND_PCM_STATE_SUSPENDED:
 		return -EPIPE;
 	default:
 		return 0;
@@ -235,6 +258,7 @@ static snd_pcm_sframes_t a52_pointer(snd_pcm_ioplug_t *io)
 	return delay;
 }
 
+/* set up the fixed parameters of slave PCM hw_parmas */
 static int a52_slave_hw_params_half(struct a52_ctx *rec)
 {
 	int err;
@@ -272,6 +296,11 @@ static int a52_slave_hw_params_half(struct a52_ctx *rec)
 	return err;
 }
 
+/*
+ * hw_params callback
+ *
+ * Set up slave PCM according to the current parameters
+ */
 static int a52_hw_params(snd_pcm_ioplug_t *io,
 			 snd_pcm_hw_params_t *params ATTRIBUTE_UNUSED)
 {
@@ -307,6 +336,9 @@ static int a52_hw_params(snd_pcm_ioplug_t *io,
 	return 0;
 }
 
+/*
+ * hw_free callback
+ */
 static int a52_hw_free(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
@@ -316,6 +348,11 @@ static int a52_hw_free(snd_pcm_ioplug_t *io)
 	return snd_pcm_hw_free(rec->slave);
 }
 
+/*
+ * sw_params callback
+ *
+ * Set up slave PCM sw_params
+ */
 static int a52_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params)
 {
 	struct a52_ctx *rec = io->private_data;
@@ -341,6 +378,9 @@ static int a52_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params)
 	return snd_pcm_sw_params(rec->slave, sparams);
 }
 
+/*
+ * start and stop callbacks - just trigger slave PCM
+ */
 static int a52_start(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
@@ -357,6 +397,7 @@ static int a52_stop(snd_pcm_ioplug_t *io)
 	return 0;
 }
 
+/* release resources */
 static void a52_free(struct a52_ctx *rec)
 {
 	if (rec->avctx) {
@@ -370,6 +411,11 @@ static void a52_free(struct a52_ctx *rec)
 	rec->outbuf = NULL;
 }
 
+/*
+ * prepare callback
+ *
+ * Allocate internal buffers and set up libavcodec
+ */
 static int a52_prepare(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
@@ -402,6 +448,9 @@ static int a52_prepare(snd_pcm_ioplug_t *io)
 	return snd_pcm_prepare(rec->slave);
 }
 
+/*
+ * poll-related callbacks - just pass to slave PCM
+ */
 static int a52_poll_descriptors_count(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
@@ -422,6 +471,9 @@ static int a52_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 	return snd_pcm_poll_descriptors_revents(rec->slave, pfd, nfds, revents);
 }
 
+/*
+ * close callback
+ */
 static int a52_close(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
@@ -432,6 +484,9 @@ static int a52_close(snd_pcm_ioplug_t *io)
 	return 0;
 }
 			      
+/*
+ * callback table
+ */
 static snd_pcm_ioplug_callback_t a52_ops = {
 	.start = a52_start,
 	.stop = a52_stop,
@@ -447,6 +502,14 @@ static snd_pcm_ioplug_callback_t a52_ops = {
 	.poll_descriptors = a52_poll_descriptors,
 	.poll_revents = a52_poll_revents,
 };
+
+/*
+ * set up h/w constraints
+ *
+ * set the period size identical with A52 frame size.
+ * the max buffer size is calculated from the max buffer size
+ * of the slave PCM
+ */
 
 #define A52_FRAME_SIZE	1536
 
@@ -491,6 +554,9 @@ static int a52_set_hw_constraint(struct a52_ctx *rec)
 	return 0;
 }
 
+/*
+ * Main entry point
+ */
 SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 {
 	snd_config_iterator_t i, next;
