@@ -61,8 +61,10 @@ static void snd_pcm_jack_free(snd_pcm_jack_t *jack)
 				free(jack->port_names[i]);
 			free(jack->port_names);
 		}
-		close(jack->fd);
-		close(jack->io.poll_fd);
+		if (jack->fd >= 0)
+			close(jack->fd);
+		if (jack->io.poll_fd >= 0)
+			close(jack->io.poll_fd);
 		free(jack->areas);
 		free(jack);
 	}
@@ -320,6 +322,9 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 	jack = calloc(1, sizeof(*jack));
 	if (!jack)
 		return -ENOMEM;
+
+	jack->fd = -1;
+	jack->io.poll_fd = -1;
 
 	err = parse_ports(jack, stream == SND_PCM_STREAM_PLAYBACK ?
 			  playback_conf : capture_conf);
