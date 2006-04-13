@@ -566,7 +566,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 	unsigned int bitrate = 448;
 	unsigned int channels = 6;
 	snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
-	char devstr[128];
+	char devstr[128], tmpcard[8];
 	struct a52_ctx *rec;
 	
 	if (stream != SND_PCM_STREAM_PLAYBACK) {
@@ -583,8 +583,14 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 			continue;
 		if (strcmp(id, "card") == 0) {
 			if (snd_config_get_string(n, &card) < 0) {
-				SNDERR("Invalid type for %s", id);
-				return -EINVAL;
+				long val;
+				err = snd_config_get_integer(n, &val);
+				if (err < 0) {
+					SNDERR("Invalid type for %s", id);
+					return -EINVAL;
+				}
+				snprintf(tmpcard, sizeof(tmpcard), "%ld", val);
+				card = tmpcard;
 			}
 			continue;
 		}
