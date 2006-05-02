@@ -164,12 +164,12 @@ static int snd_pcm_jack_prepare(snd_pcm_ioplug_t *io)
 		char port_name[32];
 		if (io->stream == SND_PCM_STREAM_PLAYBACK) {
 
-			sprintf(port_name, "out_%03d\n", i);
+			sprintf(port_name, "out_%03d", i);
 			jack->ports[i] = jack_port_register(jack->client, port_name,
 							    JACK_DEFAULT_AUDIO_TYPE,
 							    JackPortIsOutput, 0);
 		} else {
-			sprintf(port_name, "in_%03d\n", i);
+			sprintf(port_name, "in_%03d", i);
 			jack->ports[i] = jack_port_register(jack->client, port_name,
 							    JACK_DEFAULT_AUDIO_TYPE,
 							    JackPortIsInput, 0);
