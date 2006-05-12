@@ -12,7 +12,7 @@ A52DIR = a52
 endif
 
 SUBDIRS = oss mix $(JACKDIR) $(POLYPDIR) $(SAMPLERATEDIR) $(A52DIR) doc
-EXTRA_DIST = cvscompile version COPYING.GPL
+EXTRA_DIST = hgcompile version COPYING.GPL
 AUTOMAKE_OPTIONS = foreign
 
 dist-hook:
