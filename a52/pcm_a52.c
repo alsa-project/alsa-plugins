@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
+#include <alsa/pcm_plugin.h>
 #include <ffmpeg/avcodec.h>
 
 struct a52_ctx {
@@ -562,6 +563,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 	snd_config_iterator_t i, next;
 	int err;
 	const char *card = NULL;
+	const char *pcm_string = NULL;
 	unsigned int rate = 48000;
 	unsigned int bitrate = 448;
 	unsigned int channels = 6;
@@ -591,6 +593,13 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 				}
 				snprintf(tmpcard, sizeof(tmpcard), "%ld", val);
 				card = tmpcard;
+			}
+			continue;
+		}
+		if (strcmp(id, "slavepcm") == 0) {
+			if (snd_config_get_string(n, &pcm_string) < 0) {
+				SNDERR("a52 slavepcm must be a string");
+				return -EINVAL;
 			}
 			continue;
 		}
@@ -675,18 +684,28 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 		goto error;
 	}
 
-	snprintf(devstr, sizeof(devstr),
-		 "plug:iec958:{AES0 0x%x AES1 0x%x AES2 0x%x AES3 0x%x %s%s}",
-		 IEC958_AES0_CON_EMPHASIS_NONE | IEC958_AES0_NONAUDIO |
-		 IEC958_AES0_CON_NOT_COPYRIGHT,
-		 IEC958_AES1_CON_ORIGINAL | IEC958_AES1_CON_PCM_CODER,
-		 0, rate == 48000 ? IEC958_AES3_CON_FS_48000 : IEC958_AES3_CON_FS_44100,
-		 card ? " CARD " : "",
-		 card ? card : "");
-
-	err = snd_pcm_open(&rec->slave, devstr, stream, mode);
-	if (err < 0)
-		goto error;
+	if (! pcm_string) {
+		snprintf(devstr, sizeof(devstr),
+			 "iec958:{AES0 0x%x AES1 0x%x AES2 0x%x AES3 0x%x %s%s}",
+			 IEC958_AES0_CON_EMPHASIS_NONE | IEC958_AES0_NONAUDIO |
+			 IEC958_AES0_CON_NOT_COPYRIGHT,
+			 IEC958_AES1_CON_ORIGINAL | IEC958_AES1_CON_PCM_CODER,
+			 0, rate == 48000 ? IEC958_AES3_CON_FS_48000 : IEC958_AES3_CON_FS_44100,
+			 card ? " CARD " : "",
+			 card ? card : "");
+		err = snd_pcm_open(&rec->slave, devstr, stream, mode);
+		if (err < 0)
+			goto error;
+		/* in case the slave doesn't support S16 format */
+		err = snd_pcm_linear_open(&rec->slave, NULL, SND_PCM_FORMAT_S16,
+					  rec->slave, 1);
+		if (err < 0)
+			goto error;
+	} else {
+		err = snd_pcm_open(&rec->slave, pcm_string, stream, mode);
+		if (err < 0)
+			goto error;
+	}
 
 	rec->io.version = SND_PCM_IOPLUG_VERSION;
 	rec->io.name = "A52 Output Plugin";
