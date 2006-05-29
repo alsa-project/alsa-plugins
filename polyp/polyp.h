@@ -21,31 +21,26 @@
 #include <alsa/asoundlib.h>
 
 #include <polyp/polypaudio.h>
-#include <polyp/mainloop.h>
 
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 
 typedef struct snd_polyp {
-    pa_mainloop *mainloop;
+    pa_threaded_mainloop *mainloop;
     pa_context *context;
 
     int thread_fd, main_fd;
 
-    pthread_t thread;
-    int thread_running;
-
     enum {
         POLYP_STATE_INIT,
-        POLYP_STATE_CONNECTED,
         POLYP_STATE_READY,
-        POLYP_STATE_POLLING,
     } state;
 } snd_polyp_t;
 
-int polyp_start_poll(snd_polyp_t *p);
-int polyp_finish_poll(snd_polyp_t *p);
-
 int polyp_check_connection(snd_polyp_t *p);
+
+void polyp_stream_state_cb(pa_stream *s, void * userdata);
+void polyp_stream_success_cb(pa_stream *s, int success, void *userdata);
+void polyp_context_success_cb(pa_context *c, int success, void *userdata);
 
 int polyp_wait_operation(snd_polyp_t *p, pa_operation *o);
 int polyp_wait_stream_state(snd_polyp_t *p, pa_stream *stream, pa_stream_state_t target);
@@ -54,8 +49,9 @@ snd_polyp_t *polyp_new();
 void polyp_free(snd_polyp_t *p);
 
 int polyp_connect(snd_polyp_t *p, const char *server);
-int polyp_start_thread(snd_polyp_t *p);
 
+void polyp_poll_activate(snd_polyp_t *p);
+void polyp_poll_deactivate(snd_polyp_t *p);
 int polyp_poll_descriptors_count(snd_polyp_t *p);
 int polyp_poll_descriptors(snd_polyp_t *p, struct pollfd *pfd, unsigned int space);
 int polyp_poll_revents(snd_polyp_t *p, struct pollfd *pfd, unsigned int nfds, unsigned short *revents);

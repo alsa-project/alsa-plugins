@@ -21,8 +21,6 @@
 #include <stdio.h>
 #include <sys/poll.h>
 
-#include <pthread.h>
-
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 
@@ -46,8 +44,6 @@ typedef struct snd_pcm_polyp {
     pa_sample_spec ss;
     unsigned int frame_size;
     pa_buffer_attr buffer_attr;
-
-    pthread_mutex_t mutex;
 } snd_pcm_polyp_t;
 
 static void update_ptr(snd_pcm_polyp_t *pcm)
@@ -74,20 +70,17 @@ static int polyp_start(snd_pcm_ioplug_t *io)
 	int err = 0;
 
     assert(pcm);
+    assert(pcm->p);
 
-    pthread_mutex_lock(&pcm->mutex);
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    assert(pcm->p && pcm->stream);
-
-    err = polyp_finish_poll(pcm->p);
-    if (err < 0)
-        goto finish;
+    assert(pcm->stream);
 
     err = polyp_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
-    o = pa_stream_cork(pcm->stream, 0, NULL, NULL);
+    o = pa_stream_cork(pcm->stream, 0, polyp_stream_success_cb, pcm->p);
     assert(o);
 
     err = polyp_wait_operation(pcm->p, o);
@@ -100,7 +93,7 @@ static int polyp_start(snd_pcm_ioplug_t *io)
     }
 
 finish:
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
 }
@@ -112,20 +105,17 @@ static int polyp_stop(snd_pcm_ioplug_t *io)
 	int err = 0;
 
     assert(pcm);
+    assert(pcm->p);
 
-    pthread_mutex_lock(&pcm->mutex);
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    assert(pcm->p && pcm->stream);
-
-    err = polyp_finish_poll(pcm->p);
-    if (err < 0)
-        goto finish;
+    assert(pcm->stream);
 
     err = polyp_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
-    o = pa_stream_flush(pcm->stream, NULL, NULL);
+    o = pa_stream_flush(pcm->stream, polyp_stream_success_cb, pcm->p);
     assert(o);
 
     err = polyp_wait_operation(pcm->p, o);
@@ -137,7 +127,7 @@ static int polyp_stop(snd_pcm_ioplug_t *io)
         goto finish;
     }
 
-    o = pa_stream_cork(pcm->stream, 1, NULL, NULL);
+    o = pa_stream_cork(pcm->stream, 1, polyp_stream_success_cb, pcm->p);
     assert(o);
 
     err = polyp_wait_operation(pcm->p, o);
@@ -150,7 +140,7 @@ static int polyp_stop(snd_pcm_ioplug_t *io)
     }
 
 finish:
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
 }
@@ -162,20 +152,17 @@ int polyp_drain(snd_pcm_ioplug_t *io)
 	int err = 0;
 
     assert(pcm);
+    assert(pcm->p);
 
-    pthread_mutex_lock(&pcm->mutex);
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    assert(pcm->p && pcm->stream);
-
-    err = polyp_finish_poll(pcm->p);
-    if (err < 0)
-        goto finish;
+    assert(pcm->stream);
 
     err = polyp_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
-    o = pa_stream_drain(pcm->stream, NULL, NULL);
+    o = pa_stream_drain(pcm->stream, polyp_stream_success_cb, pcm->p);
     assert(o);
 
     err = polyp_wait_operation(pcm->p, o);
@@ -188,7 +175,7 @@ int polyp_drain(snd_pcm_ioplug_t *io)
     }
 
 finish:
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
 }
@@ -199,14 +186,11 @@ static snd_pcm_sframes_t polyp_pointer(snd_pcm_ioplug_t *io)
 	int err = 0;
 
     assert(pcm);
+    assert(pcm->p);
 
-    pthread_mutex_lock(&pcm->mutex);
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    assert(pcm->p && pcm->stream);
-
-    err = polyp_finish_poll(pcm->p);
-    if (err < 0)
-        goto finish;
+    assert(pcm->stream);
 
     err = polyp_check_connection(pcm->p);
     if (err < 0)
@@ -214,14 +198,41 @@ static snd_pcm_sframes_t polyp_pointer(snd_pcm_ioplug_t *io)
 
     update_ptr(pcm);
 
-    err = polyp_start_poll(pcm->p);
-    if (err < 0)
-        goto finish;
-
 	err = snd_pcm_bytes_to_frames(io->pcm, pcm->ptr);
 
 finish:
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
+
+	return err;
+}
+
+static int polyp_delay(snd_pcm_ioplug_t *io,
+                       snd_pcm_sframes_t *delayp)
+{
+	snd_pcm_polyp_t *pcm = io->private_data;
+	int err = 0;
+	pa_usec_t lat;
+
+    assert(pcm);
+    assert(pcm->p);
+
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
+
+    assert(pcm->stream);
+
+    err = polyp_check_connection(pcm->p);
+    if (err < 0)
+        goto finish;
+
+	if (pa_stream_get_latency(pcm->stream, &lat, NULL)) {
+		err = -EIO;
+		goto finish;
+	}
+
+	*delayp = snd_pcm_bytes_to_frames(io->pcm, pa_usec_to_bytes(lat, &pcm->ss));
+
+finish:
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
 }
@@ -236,14 +247,11 @@ static snd_pcm_sframes_t polyp_write(snd_pcm_ioplug_t *io,
 	int err = 0;
 
     assert(pcm);
+    assert(pcm->p);
 
-    pthread_mutex_lock(&pcm->mutex);
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    assert(pcm->p && pcm->stream);
-
-    err = polyp_finish_poll(pcm->p);
-    if (err < 0)
-        goto finish;
+    assert(pcm->stream);
 
     err = polyp_check_connection(pcm->p);
     if (err < 0)
@@ -261,10 +269,13 @@ static snd_pcm_sframes_t polyp_write(snd_pcm_ioplug_t *io,
     /* Make sure the buffer pointer is in sync */
     update_ptr(pcm);
 
+    if (pcm->last_size < pcm->buffer_attr.minreq)
+        polyp_poll_deactivate(pcm->p);
+
     err = size;
 
 finish:
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
 }
@@ -280,14 +291,11 @@ static snd_pcm_sframes_t polyp_read(snd_pcm_ioplug_t *io,
 	int err = 0;
 
     assert(pcm);
+    assert(pcm->p);
 
-    pthread_mutex_lock(&pcm->mutex);
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    assert(pcm->p && pcm->stream);
-
-    err = polyp_finish_poll(pcm->p);
-    if (err < 0)
-        goto finish;
+    assert(pcm->stream);
 
     err = polyp_check_connection(pcm->p);
     if (err < 0)
@@ -325,12 +333,25 @@ static snd_pcm_sframes_t polyp_read(snd_pcm_ioplug_t *io,
     /* Make sure the buffer pointer is in sync */
     update_ptr(pcm);
 
+    if (pcm->last_size < pcm->buffer_attr.minreq)
+        polyp_poll_deactivate(pcm->p);
+
     err = size - (remain_size / pcm->frame_size);
 
 finish:
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
+}
+
+static void stream_request_cb(pa_stream *p, size_t length, void *userdata)
+{
+    snd_pcm_polyp_t *pcm = userdata;
+
+    assert(pcm);
+    assert(pcm->p);
+
+    polyp_poll_activate(pcm->p);
 }
 
 static int polyp_pcm_poll_descriptors_count(snd_pcm_ioplug_t *io)
@@ -339,14 +360,13 @@ static int polyp_pcm_poll_descriptors_count(snd_pcm_ioplug_t *io)
 	int count;
 
     assert(pcm);
-
-    pthread_mutex_lock(&pcm->mutex);
-
     assert(pcm->p);
+
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
     count = polyp_poll_descriptors_count(pcm->p);
 
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return count;
 }
@@ -357,14 +377,13 @@ static int polyp_pcm_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd, 
 	int err;
 
     assert(pcm);
-
-    pthread_mutex_lock(&pcm->mutex);
-
     assert(pcm->p);
+
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
     err = polyp_poll_descriptors(pcm->p, pfd, space);
 
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
 }
@@ -375,10 +394,9 @@ static int polyp_pcm_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd, unsi
 	int err = 0;
 
     assert(pcm);
-
-    pthread_mutex_lock(&pcm->mutex);
-
     assert(pcm->p);
+
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
     err = polyp_poll_revents(pcm->p, pfd, nfds, revents);
     if (err < 0)
@@ -402,25 +420,21 @@ static int polyp_pcm_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd, unsi
     }
 
 finish:
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
 }
 
 static int polyp_prepare(snd_pcm_ioplug_t *io)
 {
+    pa_channel_map map;
     snd_pcm_polyp_t *pcm = io->private_data;
     int err = 0;
 
     assert(pcm);
-
-    pthread_mutex_lock(&pcm->mutex);
-
     assert(pcm->p);
 
-    err = polyp_finish_poll(pcm->p);
-    if (err < 0)
-        goto finish;
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
     if (pcm->stream) {
         pa_stream_disconnect(pcm->stream);
@@ -436,15 +450,24 @@ static int polyp_prepare(snd_pcm_ioplug_t *io)
     assert(pcm->stream == NULL);
 
     if (io->stream == SND_PCM_STREAM_PLAYBACK)
-        pcm->stream = pa_stream_new(pcm->p->context, "ALSA Playback", &pcm->ss, NULL);
+        pcm->stream = pa_stream_new(pcm->p->context, "ALSA Playback", &pcm->ss,
+            pa_channel_map_init_auto(&map, pcm->ss.channels, PA_CHANNEL_MAP_ALSA));
     else
-        pcm->stream = pa_stream_new(pcm->p->context, "ALSA Capture", &pcm->ss, NULL);
+        pcm->stream = pa_stream_new(pcm->p->context, "ALSA Capture", &pcm->ss,
+            pa_channel_map_init_auto(&map, pcm->ss.channels, PA_CHANNEL_MAP_ALSA));
     assert(pcm->stream);
 
-    if (io->stream == SND_PCM_STREAM_PLAYBACK)
-        pa_stream_connect_playback(pcm->stream, pcm->device, &pcm->buffer_attr, 0, NULL, NULL);
-    else
-        pa_stream_connect_record(pcm->stream, pcm->device, &pcm->buffer_attr, 0);
+    pa_stream_set_state_callback(pcm->stream, polyp_stream_state_cb, pcm->p);
+
+    if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+        pa_stream_set_write_callback(pcm->stream, stream_request_cb, pcm);
+        pa_stream_connect_playback(pcm->stream, pcm->device, &pcm->buffer_attr,
+        	PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING, NULL, NULL);
+    } else {
+        pa_stream_set_read_callback(pcm->stream, stream_request_cb, pcm);
+        pa_stream_connect_record(pcm->stream, pcm->device, &pcm->buffer_attr,
+	        PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING);
+    }
 
     err = polyp_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_READY);
     if (err < 0) {
@@ -459,7 +482,7 @@ static int polyp_prepare(snd_pcm_ioplug_t *io)
     pcm->offset = 0;
 
 finish:
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
 }
@@ -470,10 +493,11 @@ static int polyp_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	int err = 0;
 
     assert(pcm);
+    assert(pcm->p);
 
-    pthread_mutex_lock(&pcm->mutex);
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    assert(pcm->p && !pcm->stream);
+    assert(!pcm->stream);
 
     pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
 
@@ -516,7 +540,7 @@ static int polyp_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
     pcm->buffer_attr.fragsize = io->period_size * pcm->frame_size;
 
 finish:
-    pthread_mutex_unlock(&pcm->mutex);
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
 }
@@ -527,11 +551,15 @@ static int polyp_close(snd_pcm_ioplug_t *io)
 
     assert(pcm);
 
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
+
     if (pcm->stream) {
         pa_stream_disconnect(pcm->stream);
         polyp_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_TERMINATED);
         pa_stream_unref(pcm->stream);
     }
+
+    pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
     if (pcm->p)
         polyp_free(pcm->p);
@@ -539,39 +567,39 @@ static int polyp_close(snd_pcm_ioplug_t *io)
     if (pcm->device)
         free(pcm->device);
 
-    pthread_mutex_destroy(&pcm->mutex);
-
 	free(pcm);
 
 	return 0;
 }
 
 static snd_pcm_ioplug_callback_t polyp_playback_callback = {
-	.start = polyp_start,
-	.stop = polyp_stop,
+    .start = polyp_start,
+    .stop = polyp_stop,
     .drain = polyp_drain,
-	.pointer = polyp_pointer,
-	.transfer = polyp_write,
+    .pointer = polyp_pointer,
+    .transfer = polyp_write,
+    .delay = polyp_delay,
     .poll_descriptors_count = polyp_pcm_poll_descriptors_count,
     .poll_descriptors = polyp_pcm_poll_descriptors,
     .poll_revents = polyp_pcm_poll_revents,
-	.prepare = polyp_prepare,
-	.hw_params = polyp_hw_params,
-	.close = polyp_close,
+    .prepare = polyp_prepare,
+    .hw_params = polyp_hw_params,
+    .close = polyp_close,
 };
 
 
 static snd_pcm_ioplug_callback_t polyp_capture_callback = {
-	.start = polyp_start,
-	.stop = polyp_stop,
-	.pointer = polyp_pointer,
-	.transfer = polyp_read,
+    .start = polyp_start,
+    .stop = polyp_stop,
+    .pointer = polyp_pointer,
+    .transfer = polyp_read,
+    .delay = polyp_delay,
     .poll_descriptors_count = polyp_pcm_poll_descriptors_count,
     .poll_descriptors = polyp_pcm_poll_descriptors,
     .poll_revents = polyp_pcm_poll_revents,
-	.prepare = polyp_prepare,
-	.hw_params = polyp_hw_params,
-	.close = polyp_close,
+    .prepare = polyp_prepare,
+    .hw_params = polyp_hw_params,
+    .close = polyp_close,
 };
 
 
@@ -645,7 +673,6 @@ SND_PCM_PLUGIN_DEFINE_FUNC(polyp)
 	const char *device = NULL;
 	int err;
 	snd_pcm_polyp_t *pcm;
-    pthread_mutexattr_t mutexattr;
 
 	snd_config_for_each(i, next, conf) {
 		snd_config_t *n = snd_config_iterator_entry(i);
@@ -678,20 +705,14 @@ SND_PCM_PLUGIN_DEFINE_FUNC(polyp)
         pcm->device = strdup(device);
 
     pcm->p = polyp_new();
-    assert(pcm->p);
+    if (!pcm->p) {
+        err = -EIO;
+        goto error;
+    }
 
     err = polyp_connect(pcm->p, server);
     if (err < 0)
         goto error;
-
-    err = polyp_start_thread(pcm->p);
-    if (err < 0)
-        goto error;
-
-    pthread_mutexattr_init(&mutexattr);
-    pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&pcm->mutex, &mutexattr);
-    pthread_mutexattr_destroy(&mutexattr);
 
 	pcm->io.version = SND_PCM_IOPLUG_VERSION;
 	pcm->io.name = "ALSA <-> Polypaudio PCM I/O Plugin";
