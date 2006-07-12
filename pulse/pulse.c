@@ -1,5 +1,5 @@
 /*
- * ALSA <-> Polypaudio plugins
+ * ALSA <-> PulseAudio plugins
  *
  * Copyright (c) 2006 by Pierre Ossman <ossman@cendio.se>
  *
@@ -23,9 +23,9 @@
 #include <signal.h>
 #include <sys/poll.h>
 
-#include "polyp.h"
+#include "pulse.h"
 
-int polyp_check_connection(snd_polyp_t *p)
+int pulse_check_connection(snd_pulse_t *p)
 {
     pa_context_state_t state;
 
@@ -39,9 +39,9 @@ int polyp_check_connection(snd_polyp_t *p)
     return 0;
 }
 
-void polyp_stream_state_cb(pa_stream *s, void * userdata)
+void pulse_stream_state_cb(pa_stream *s, void * userdata)
 {
-    snd_polyp_t *p = userdata;
+    snd_pulse_t *p = userdata;
 
     assert(s);
     assert(p);
@@ -49,9 +49,9 @@ void polyp_stream_state_cb(pa_stream *s, void * userdata)
     pa_threaded_mainloop_signal(p->mainloop, 0);
 }
 
-void polyp_stream_success_cb(pa_stream *s, int success, void *userdata)
+void pulse_stream_success_cb(pa_stream *s, int success, void *userdata)
 {
-    snd_polyp_t *p = userdata;
+    snd_pulse_t *p = userdata;
 
     assert(s);
     assert(p);
@@ -59,9 +59,9 @@ void polyp_stream_success_cb(pa_stream *s, int success, void *userdata)
     pa_threaded_mainloop_signal(p->mainloop, 0);
 }
 
-void polyp_context_success_cb(pa_context *c, int success, void *userdata)
+void pulse_context_success_cb(pa_context *c, int success, void *userdata)
 {
-    snd_polyp_t *p = userdata;
+    snd_pulse_t *p = userdata;
 
     assert(c);
     assert(p);
@@ -69,9 +69,9 @@ void polyp_context_success_cb(pa_context *c, int success, void *userdata)
     pa_threaded_mainloop_signal(p->mainloop, 0);
 }
 
-int polyp_wait_operation(snd_polyp_t *p, pa_operation *o)
+int pulse_wait_operation(snd_pulse_t *p, pa_operation *o)
 {
-    assert(p && o && (p->state == POLYP_STATE_READY) && p->mainloop);
+    assert(p && o && (p->state == PULSE_STATE_READY) && p->mainloop);
 
     while (pa_operation_get_state(o) == PA_OPERATION_RUNNING)
         pa_threaded_mainloop_wait(p->mainloop);
@@ -79,11 +79,11 @@ int polyp_wait_operation(snd_polyp_t *p, pa_operation *o)
     return 0;
 }
 
-int polyp_wait_stream_state(snd_polyp_t *p, pa_stream *stream, pa_stream_state_t target)
+int pulse_wait_stream_state(snd_pulse_t *p, pa_stream *stream, pa_stream_state_t target)
 {
     pa_stream_state_t state;
 
-    assert(p && stream && (p->state == POLYP_STATE_READY) && p->mainloop);
+    assert(p && stream && (p->state == PULSE_STATE_READY) && p->mainloop);
 
     while (1) {
         state = pa_stream_get_state(stream);
@@ -101,7 +101,7 @@ int polyp_wait_stream_state(snd_polyp_t *p, pa_stream *stream, pa_stream_state_t
 }
 
 static void context_state_cb(pa_context *c, void *userdata) {
-    snd_polyp_t *p = userdata;
+    snd_pulse_t *p = userdata;
     assert(c);
 
     switch (pa_context_get_state(c)) {
@@ -119,16 +119,16 @@ static void context_state_cb(pa_context *c, void *userdata) {
     }
 }
 
-snd_polyp_t *polyp_new()
+snd_pulse_t *pulse_new()
 {
-    snd_polyp_t *p;
+    snd_pulse_t *p;
 	int fd[2] = { -1, -1 };
 	char proc[PATH_MAX], buf[PATH_MAX + 20];
 
-    p = calloc(1, sizeof(snd_polyp_t));
+    p = calloc(1, sizeof(snd_pulse_t));
     assert(p);
 
-    p->state = POLYP_STATE_INIT;
+    p->state = PULSE_STATE_INIT;
 
     if (pipe(fd)) {
         free(p);
@@ -165,7 +165,7 @@ snd_polyp_t *polyp_new()
     return p;
 }
 
-void polyp_free(snd_polyp_t *p)
+void pulse_free(snd_pulse_t *p)
 {
     pa_threaded_mainloop_stop(p->mainloop);
 
@@ -178,11 +178,11 @@ void polyp_free(snd_polyp_t *p)
     free(p);
 }
 
-int polyp_connect(snd_polyp_t *p, const char *server)
+int pulse_connect(snd_pulse_t *p, const char *server)
 {
     int err;
 
-    assert(p && p->context && p->mainloop && (p->state == POLYP_STATE_INIT));
+    assert(p && p->context && p->mainloop && (p->state == PULSE_STATE_INIT));
 
     pa_threaded_mainloop_lock(p->mainloop);
 
@@ -199,12 +199,12 @@ int polyp_connect(snd_polyp_t *p, const char *server)
 
     pa_threaded_mainloop_unlock(p->mainloop);
 
-    p->state = POLYP_STATE_READY;
+    p->state = PULSE_STATE_READY;
 
     return 0;
 
 error:
-    fprintf(stderr, "*** POLYPAUDIO: Unable to connect: %s\n",
+    fprintf(stderr, "*** PULSEAUDIO: Unable to connect: %s\n",
         pa_strerror(pa_context_errno(p->context)));
 
     pa_threaded_mainloop_unlock(p->mainloop);
@@ -212,14 +212,14 @@ error:
     return -ECONNREFUSED;
 }
 
-void polyp_poll_activate(snd_polyp_t *p)
+void pulse_poll_activate(snd_pulse_t *p)
 {
     assert(p);
 
     write(p->thread_fd, "a", 1);
 }
 
-void polyp_poll_deactivate(snd_polyp_t *p)
+void pulse_poll_deactivate(snd_pulse_t *p)
 {
 	char buf[10];
 
@@ -229,7 +229,7 @@ void polyp_poll_deactivate(snd_polyp_t *p)
     while (read(p->main_fd, buf, sizeof(buf)) > 0);
 }
 
-int polyp_poll_descriptors_count(snd_polyp_t *p)
+int pulse_poll_descriptors_count(snd_pulse_t *p)
 {
     assert(p);
 
@@ -239,7 +239,7 @@ int polyp_poll_descriptors_count(snd_polyp_t *p)
         return 0;
 }
 
-int polyp_poll_descriptors(snd_polyp_t *p, struct pollfd *pfd, unsigned int space)
+int pulse_poll_descriptors(snd_pulse_t *p, struct pollfd *pfd, unsigned int space)
 {
     assert(p);
 
@@ -252,7 +252,7 @@ int polyp_poll_descriptors(snd_polyp_t *p, struct pollfd *pfd, unsigned int spac
     return 1;
 }
 
-int polyp_poll_revents(snd_polyp_t *p, struct pollfd *pfd, unsigned int nfds, unsigned short *revents)
+int pulse_poll_revents(snd_pulse_t *p, struct pollfd *pfd, unsigned int nfds, unsigned short *revents)
 {
     assert(p);
 

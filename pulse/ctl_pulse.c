@@ -1,5 +1,5 @@
 /*
- * ALSA <-> Polypaudio mixer control plugin
+ * ALSA <-> PulseAudio mixer control plugin
  *
  * Copyright (c) 2006 by Pierre Ossman <ossman@cendio.se>
  *
@@ -23,12 +23,12 @@
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
 
-#include "polyp.h"
+#include "pulse.h"
 
-typedef struct snd_ctl_polyp {
+typedef struct snd_ctl_pulse {
 	snd_ctl_ext_t ext;
 
-    snd_polyp_t *p;
+    snd_pulse_t *p;
 
     char *source;
     char *sink;
@@ -41,7 +41,7 @@ typedef struct snd_ctl_polyp {
 
     int subscribed;
     int updated;
-} snd_ctl_polyp_t;
+} snd_ctl_pulse_t;
 
 #define SOURCE_VOL_NAME "Capture Volume"
 #define SOURCE_MUTE_NAME "Capture Switch"
@@ -55,7 +55,7 @@ typedef struct snd_ctl_polyp {
 
 static void sink_info_cb(pa_context *c, const pa_sink_info *i, int is_last, void *userdata)
 {
-    snd_ctl_polyp_t *ctl = (snd_ctl_polyp_t*)userdata;
+    snd_ctl_pulse_t *ctl = (snd_ctl_pulse_t*)userdata;
     int chan;
 
     assert(ctl);
@@ -70,7 +70,7 @@ static void sink_info_cb(pa_context *c, const pa_sink_info *i, int is_last, void
     if (!!ctl->sink_muted != !!i->mute) {
         ctl->sink_muted = i->mute;
         ctl->updated |= UPDATE_SINK_MUTE;
-        polyp_poll_activate(ctl->p);
+        pulse_poll_activate(ctl->p);
     }
 
     if (ctl->sink_volume.channels == i->volume.channels) {
@@ -82,7 +82,7 @@ static void sink_info_cb(pa_context *c, const pa_sink_info *i, int is_last, void
             return;
 
         ctl->updated |= UPDATE_SINK_VOL;
-        polyp_poll_activate(ctl->p);
+        pulse_poll_activate(ctl->p);
     }
 
     memcpy(&ctl->sink_volume, &i->volume, sizeof(pa_cvolume));
@@ -90,7 +90,7 @@ static void sink_info_cb(pa_context *c, const pa_sink_info *i, int is_last, void
 
 static void source_info_cb(pa_context *c, const pa_source_info *i, int is_last, void *userdata)
 {
-    snd_ctl_polyp_t *ctl = (snd_ctl_polyp_t*)userdata;
+    snd_ctl_pulse_t *ctl = (snd_ctl_pulse_t*)userdata;
     int chan;
 
     assert(ctl);
@@ -105,7 +105,7 @@ static void source_info_cb(pa_context *c, const pa_source_info *i, int is_last, 
     if (!!ctl->source_muted != !!i->mute) {
         ctl->source_muted = i->mute;
         ctl->updated |= UPDATE_SOURCE_MUTE;
-        polyp_poll_activate(ctl->p);
+        pulse_poll_activate(ctl->p);
     }
 
     if (ctl->source_volume.channels == i->volume.channels) {
@@ -117,7 +117,7 @@ static void source_info_cb(pa_context *c, const pa_source_info *i, int is_last, 
             return;
 
         ctl->updated |= UPDATE_SOURCE_VOL;
-        polyp_poll_activate(ctl->p);
+        pulse_poll_activate(ctl->p);
     }
 
     memcpy(&ctl->source_volume, &i->volume, sizeof(pa_cvolume));
@@ -126,7 +126,7 @@ static void source_info_cb(pa_context *c, const pa_source_info *i, int is_last, 
 static void event_cb(pa_context *c, pa_subscription_event_type_t t,
     uint32_t index, void *userdata)
 {
-    snd_ctl_polyp_t *ctl = (snd_ctl_polyp_t*)userdata;
+    snd_ctl_pulse_t *ctl = (snd_ctl_pulse_t*)userdata;
     pa_operation *o;
 
     assert(ctl && ctl->p && ctl->p->context);
@@ -140,7 +140,7 @@ static void event_cb(pa_context *c, pa_subscription_event_type_t t,
     pa_operation_unref(o);
 }
 
-static int polyp_update_volume(snd_ctl_polyp_t *ctl)
+static int pulse_update_volume(snd_ctl_pulse_t *ctl)
 {
     int err;
     pa_operation *o;
@@ -149,14 +149,14 @@ static int polyp_update_volume(snd_ctl_polyp_t *ctl)
 
     o = pa_context_get_sink_info_by_name(ctl->p->context, ctl->sink,
         sink_info_cb, ctl);
-    err = polyp_wait_operation(ctl->p, o);
+    err = pulse_wait_operation(ctl->p, o);
     pa_operation_unref(o);
     if (err < 0)
         return err;
 
     o = pa_context_get_source_info_by_name(ctl->p->context, ctl->source,
         source_info_cb, ctl);
-    err = polyp_wait_operation(ctl->p, o);
+    err = pulse_wait_operation(ctl->p, o);
     pa_operation_unref(o);
     if (err < 0)
         return err;
@@ -164,9 +164,9 @@ static int polyp_update_volume(snd_ctl_polyp_t *ctl)
     return 0;
 }
 
-static int polyp_elem_count(snd_ctl_ext_t *ext)
+static int pulse_elem_count(snd_ctl_ext_t *ext)
 {
-    snd_ctl_polyp_t *ctl = ext->private_data;
+    snd_ctl_pulse_t *ctl = ext->private_data;
     int count = 0;
 
     assert(ctl);
@@ -183,10 +183,10 @@ static int polyp_elem_count(snd_ctl_ext_t *ext)
     return count;
 }
 
-static int polyp_elem_list(snd_ctl_ext_t *ext, unsigned int offset,
+static int pulse_elem_list(snd_ctl_ext_t *ext, unsigned int offset,
     snd_ctl_elem_id_t *id)
 {
-    snd_ctl_polyp_t *ctl = ext->private_data;
+    snd_ctl_pulse_t *ctl = ext->private_data;
 
     assert(ctl);
 
@@ -212,7 +212,7 @@ static int polyp_elem_list(snd_ctl_ext_t *ext, unsigned int offset,
     return 0;
 }
 
-static snd_ctl_ext_key_t polyp_find_elem(snd_ctl_ext_t *ext,
+static snd_ctl_ext_key_t pulse_find_elem(snd_ctl_ext_t *ext,
     const snd_ctl_elem_id_t *id)
 {
     const char *name;
@@ -231,10 +231,10 @@ static snd_ctl_ext_key_t polyp_find_elem(snd_ctl_ext_t *ext,
     return SND_CTL_EXT_KEY_NOT_FOUND;
 }
 
-static int polyp_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
+static int pulse_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
     int *type, unsigned int *acc, unsigned int *count)
 {
-    snd_ctl_polyp_t *ctl = ext->private_data;
+    snd_ctl_pulse_t *ctl = ext->private_data;
     int err = 0;
 
     if (key > 3)
@@ -245,11 +245,11 @@ static int polyp_get_attribute(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 
     pa_threaded_mainloop_lock(ctl->p->mainloop);
 
-    err = polyp_check_connection(ctl->p);
+    err = pulse_check_connection(ctl->p);
     if (err < 0)
         goto finish;
 
-    err = polyp_update_volume(ctl);
+    err = pulse_update_volume(ctl);
     if (err < 0)
         goto finish;
 
@@ -273,7 +273,7 @@ finish:
     return err;
 }
 
-static int polyp_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
+static int pulse_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
     long *imin, long *imax, long *istep)
 {
     *istep = 1;
@@ -283,10 +283,10 @@ static int polyp_get_integer_info(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
     return 0;
 }
 
-static int polyp_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
+static int pulse_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
     long *value)
 {
-    snd_ctl_polyp_t *ctl = ext->private_data;
+    snd_ctl_pulse_t *ctl = ext->private_data;
     int err = 0, i;
     pa_cvolume *vol = NULL;
 
@@ -295,11 +295,11 @@ static int polyp_read_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 
     pa_threaded_mainloop_lock(ctl->p->mainloop);
 
-    err = polyp_check_connection(ctl->p);
+    err = pulse_check_connection(ctl->p);
     if (err < 0)
         goto finish;
 
-    err = polyp_update_volume(ctl);
+    err = pulse_update_volume(ctl);
     if (err < 0)
         goto finish;
 
@@ -332,10 +332,10 @@ finish:
     return err;
 }
 
-static int polyp_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
+static int pulse_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
     long *value)
 {
-    snd_ctl_polyp_t *ctl = ext->private_data;
+    snd_ctl_pulse_t *ctl = ext->private_data;
     int err = 0, i;
     pa_operation *o;
     pa_cvolume *vol = NULL;
@@ -345,11 +345,11 @@ static int polyp_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 
     pa_threaded_mainloop_lock(ctl->p->mainloop);
 
-    err = polyp_check_connection(ctl->p);
+    err = pulse_check_connection(ctl->p);
     if (err < 0)
         goto finish;
 
-    err = polyp_update_volume(ctl);
+    err = pulse_update_volume(ctl);
     if (err < 0)
         goto finish;
 
@@ -388,20 +388,20 @@ static int polyp_write_integer(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key,
 
         if (key == 0)
             o = pa_context_set_source_volume_by_name(ctl->p->context,
-                ctl->source, vol, polyp_context_success_cb, ctl->p);
+                ctl->source, vol, pulse_context_success_cb, ctl->p);
         else
             o = pa_context_set_sink_volume_by_name(ctl->p->context,
-                ctl->sink, vol, polyp_context_success_cb, ctl->p);
+                ctl->sink, vol, pulse_context_success_cb, ctl->p);
     } else {
         if (key == 1)
             o = pa_context_set_source_mute_by_name(ctl->p->context,
-                ctl->source, ctl->source_muted, polyp_context_success_cb, ctl->p);
+                ctl->source, ctl->source_muted, pulse_context_success_cb, ctl->p);
         else
             o = pa_context_set_sink_mute_by_name(ctl->p->context,
-                ctl->sink, ctl->sink_muted, polyp_context_success_cb, ctl->p);
+                ctl->sink, ctl->sink_muted, pulse_context_success_cb, ctl->p);
     }
 
-    err = polyp_wait_operation(ctl->p, o);
+    err = pulse_wait_operation(ctl->p, o);
     pa_operation_unref(o);
     if (err < 0)
         goto finish;
@@ -414,9 +414,9 @@ finish:
     return err;
 }
 
-static void polyp_subscribe_events(snd_ctl_ext_t *ext, int subscribe)
+static void pulse_subscribe_events(snd_ctl_ext_t *ext, int subscribe)
 {
-    snd_ctl_polyp_t *ctl = ext->private_data;
+    snd_ctl_pulse_t *ctl = ext->private_data;
 
     assert(ctl);
 
@@ -427,10 +427,10 @@ static void polyp_subscribe_events(snd_ctl_ext_t *ext, int subscribe)
     pa_threaded_mainloop_unlock(ctl->p->mainloop);
 }
 
-static int polyp_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id,
+static int pulse_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id,
     unsigned int *event_mask)
 {
-    snd_ctl_polyp_t *ctl = ext->private_data;
+    snd_ctl_pulse_t *ctl = ext->private_data;
     int offset;
     int err = -EAGAIN;
 
@@ -447,23 +447,23 @@ static int polyp_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id,
         offset = 0;
 
     if (ctl->updated & UPDATE_SOURCE_VOL) {
-        polyp_elem_list(ext, 0, id);
+        pulse_elem_list(ext, 0, id);
         ctl->updated &= ~UPDATE_SOURCE_VOL;
     } else if (ctl->updated & UPDATE_SOURCE_MUTE) {
-        polyp_elem_list(ext, 1, id);
+        pulse_elem_list(ext, 1, id);
         ctl->updated &= ~UPDATE_SOURCE_MUTE;
     } else if (ctl->updated & UPDATE_SINK_VOL) {
-        polyp_elem_list(ext, offset + 0, id);
+        pulse_elem_list(ext, offset + 0, id);
         ctl->updated &= ~UPDATE_SINK_VOL;
     } else if (ctl->updated & UPDATE_SINK_MUTE) {
-        polyp_elem_list(ext, offset + 1, id);
+        pulse_elem_list(ext, offset + 1, id);
         ctl->updated &= ~UPDATE_SINK_MUTE;
     }
 
     *event_mask = SND_CTL_EVENT_MASK_VALUE;
 
     if (!ctl->updated)
-        polyp_poll_deactivate(ctl->p);
+        pulse_poll_deactivate(ctl->p);
 
     err = 1;
 
@@ -473,9 +473,9 @@ finish:
     return err;
 }
 
-static int polyp_ctl_poll_descriptors_count(snd_ctl_ext_t *ext)
+static int pulse_ctl_poll_descriptors_count(snd_ctl_ext_t *ext)
 {
-	snd_ctl_polyp_t *ctl = ext->private_data;
+	snd_ctl_pulse_t *ctl = ext->private_data;
 	int count;
 
     assert(ctl);
@@ -483,25 +483,25 @@ static int polyp_ctl_poll_descriptors_count(snd_ctl_ext_t *ext)
 
     pa_threaded_mainloop_lock(ctl->p->mainloop);
 
-    count = polyp_poll_descriptors_count(ctl->p);
+    count = pulse_poll_descriptors_count(ctl->p);
 
     pa_threaded_mainloop_unlock(ctl->p->mainloop);
 
     return count;
 }
 
-static int polyp_ctl_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd, unsigned int space)
+static int pulse_ctl_poll_descriptors(snd_ctl_ext_t *ext, struct pollfd *pfd, unsigned int space)
 {
     int num;
 
-	snd_ctl_polyp_t *ctl = ext->private_data;
+	snd_ctl_pulse_t *ctl = ext->private_data;
 
     assert(ctl);
     assert(ctl->p);
 
     pa_threaded_mainloop_lock(ctl->p->mainloop);
 
-    num = polyp_poll_descriptors(ctl->p, pfd, space);
+    num = pulse_poll_descriptors(ctl->p, pfd, space);
     if (num < 0)
         goto finish;
 
@@ -511,9 +511,9 @@ finish:
     return num;
 }
 
-static int polyp_ctl_poll_revents(snd_ctl_ext_t *ext, struct pollfd *pfd, unsigned int nfds, unsigned short *revents)
+static int pulse_ctl_poll_revents(snd_ctl_ext_t *ext, struct pollfd *pfd, unsigned int nfds, unsigned short *revents)
 {
-	snd_ctl_polyp_t *ctl = ext->private_data;
+	snd_ctl_pulse_t *ctl = ext->private_data;
 	int err = 0;
 
     assert(ctl);
@@ -521,7 +521,7 @@ static int polyp_ctl_poll_revents(snd_ctl_ext_t *ext, struct pollfd *pfd, unsign
 
     pa_threaded_mainloop_lock(ctl->p->mainloop);
 
-    err = polyp_poll_revents(ctl->p, pfd, nfds, revents);
+    err = pulse_poll_revents(ctl->p, pfd, nfds, revents);
     if (err < 0)
         goto finish;
 
@@ -536,14 +536,14 @@ finish:
     return err;
 }
 
-static void polyp_close(snd_ctl_ext_t *ext)
+static void pulse_close(snd_ctl_ext_t *ext)
 {
-    snd_ctl_polyp_t *ctl = ext->private_data;
+    snd_ctl_pulse_t *ctl = ext->private_data;
 
     assert(ctl);
 
     if (ctl->p)
-        polyp_free(ctl->p);
+        pulse_free(ctl->p);
 
     if (ctl->source)
         free(ctl->source);
@@ -553,25 +553,25 @@ static void polyp_close(snd_ctl_ext_t *ext)
 	free(ctl);
 }
 
-static snd_ctl_ext_callback_t polyp_ext_callback = {
-    .elem_count = polyp_elem_count,
-    .elem_list = polyp_elem_list,
-    .find_elem = polyp_find_elem,
-    .get_attribute = polyp_get_attribute,
-    .get_integer_info = polyp_get_integer_info,
-    .read_integer = polyp_read_integer,
-    .write_integer = polyp_write_integer,
-    .subscribe_events = polyp_subscribe_events,
-    .read_event = polyp_read_event,
-    .poll_descriptors_count = polyp_ctl_poll_descriptors_count,
-    .poll_descriptors = polyp_ctl_poll_descriptors,
-    .poll_revents = polyp_ctl_poll_revents,
-    .close = polyp_close,
+static snd_ctl_ext_callback_t pulse_ext_callback = {
+    .elem_count = pulse_elem_count,
+    .elem_list = pulse_elem_list,
+    .find_elem = pulse_find_elem,
+    .get_attribute = pulse_get_attribute,
+    .get_integer_info = pulse_get_integer_info,
+    .read_integer = pulse_read_integer,
+    .write_integer = pulse_write_integer,
+    .subscribe_events = pulse_subscribe_events,
+    .read_event = pulse_read_event,
+    .poll_descriptors_count = pulse_ctl_poll_descriptors_count,
+    .poll_descriptors = pulse_ctl_poll_descriptors,
+    .poll_revents = pulse_ctl_poll_revents,
+    .close = pulse_close,
 };
 
 static void server_info_cb(pa_context *c, const pa_server_info*i, void *userdata)
 {
-    snd_ctl_polyp_t *ctl = (snd_ctl_polyp_t*)userdata;
+    snd_ctl_pulse_t *ctl = (snd_ctl_pulse_t*)userdata;
 
     assert(ctl && i);
 
@@ -583,7 +583,7 @@ static void server_info_cb(pa_context *c, const pa_server_info*i, void *userdata
     pa_threaded_mainloop_signal(ctl->p->mainloop, 0);
 }
 
-SND_CTL_PLUGIN_DEFINE_FUNC(polyp)
+SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 {
 	snd_config_iterator_t i, next;
 	const char *server = NULL;
@@ -591,7 +591,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(polyp)
 	const char *source = NULL;
 	const char *sink = NULL;
 	int err;
-	snd_ctl_polyp_t *ctl;
+	snd_ctl_pulse_t *ctl;
     pa_operation *o;
 
 	snd_config_for_each(i, next, conf) {
@@ -635,13 +635,13 @@ SND_CTL_PLUGIN_DEFINE_FUNC(polyp)
 
 	ctl = calloc(1, sizeof(*ctl));
 
-    ctl->p = polyp_new();
+    ctl->p = pulse_new();
     if (!ctl->p) {
         err = -EIO;
         goto error;
     }
 
-    err = polyp_connect(ctl->p, server);
+    err = pulse_connect(ctl->p, server);
     if (err < 0)
         goto error;
 
@@ -659,7 +659,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(polyp)
         pa_threaded_mainloop_lock(ctl->p->mainloop);
 
         o = pa_context_get_server_info(ctl->p->context, server_info_cb, ctl);
-        err = polyp_wait_operation(ctl->p, o);
+        err = pulse_wait_operation(ctl->p, o);
 
         pa_operation_unref(o);
 
@@ -675,9 +675,9 @@ SND_CTL_PLUGIN_DEFINE_FUNC(polyp)
 
     o = pa_context_subscribe(ctl->p->context,
         PA_SUBSCRIPTION_MASK_SINK | PA_SUBSCRIPTION_MASK_SOURCE,
-        polyp_context_success_cb, ctl->p);
+        pulse_context_success_cb, ctl->p);
 
-    err = polyp_wait_operation(ctl->p, o);
+    err = pulse_wait_operation(ctl->p, o);
 
     pa_operation_unref(o);
 
@@ -688,13 +688,13 @@ SND_CTL_PLUGIN_DEFINE_FUNC(polyp)
 
     ctl->ext.version = SND_CTL_EXT_VERSION;
     ctl->ext.card_idx = 0;
-    strncpy(ctl->ext.id, "polyp", sizeof(ctl->ext.id) - 1);
+    strncpy(ctl->ext.id, "pulse", sizeof(ctl->ext.id) - 1);
     strncpy(ctl->ext.driver, "Polypaudio plugin", sizeof(ctl->ext.driver) - 1);
     strncpy(ctl->ext.name, "Polypaudio", sizeof(ctl->ext.name) - 1);
     strncpy(ctl->ext.longname, "Polypaudio", sizeof(ctl->ext.longname) - 1);
     strncpy(ctl->ext.mixername, "Polypaudio", sizeof(ctl->ext.mixername) - 1);
     ctl->ext.poll_fd = -1;
-    ctl->ext.callback = &polyp_ext_callback;
+    ctl->ext.callback = &pulse_ext_callback;
     ctl->ext.private_data = ctl;
 
     err = snd_ctl_ext_create(&ctl->ext, name, mode);
@@ -712,11 +712,11 @@ error:
         free(ctl->sink);
 
     if (ctl->p)
-        polyp_free(ctl->p);
+        pulse_free(ctl->p);
 
 	free(ctl);
 
 	return err;
 }
 
-SND_CTL_PLUGIN_SYMBOL(polyp);
+SND_CTL_PLUGIN_SYMBOL(pulse);

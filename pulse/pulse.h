@@ -1,5 +1,5 @@
 /*
- * ALSA <-> Polypaudio plugins
+ * ALSA <-> PulseAudio plugins
  *
  * Copyright (c) 2006 by Pierre Ossman <ossman@cendio.se>
  *
@@ -20,38 +20,38 @@
 
 #include <alsa/asoundlib.h>
 
-#include <polyp/polypaudio.h>
+#include <pulse/pulseaudio.h>
 
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 
-typedef struct snd_polyp {
+typedef struct snd_pulse {
     pa_threaded_mainloop *mainloop;
     pa_context *context;
 
     int thread_fd, main_fd;
 
     enum {
-        POLYP_STATE_INIT,
-        POLYP_STATE_READY,
+        PULSE_STATE_INIT,
+        PULSE_STATE_READY,
     } state;
-} snd_polyp_t;
+} snd_pulse_t;
 
-int polyp_check_connection(snd_polyp_t *p);
+int pulse_check_connection(snd_pulse_t *p);
 
-void polyp_stream_state_cb(pa_stream *s, void * userdata);
-void polyp_stream_success_cb(pa_stream *s, int success, void *userdata);
-void polyp_context_success_cb(pa_context *c, int success, void *userdata);
+void pulse_stream_state_cb(pa_stream *s, void * userdata);
+void pulse_stream_success_cb(pa_stream *s, int success, void *userdata);
+void pulse_context_success_cb(pa_context *c, int success, void *userdata);
 
-int polyp_wait_operation(snd_polyp_t *p, pa_operation *o);
-int polyp_wait_stream_state(snd_polyp_t *p, pa_stream *stream, pa_stream_state_t target);
+int pulse_wait_operation(snd_pulse_t *p, pa_operation *o);
+int pulse_wait_stream_state(snd_pulse_t *p, pa_stream *stream, pa_stream_state_t target);
 
-snd_polyp_t *polyp_new();
-void polyp_free(snd_polyp_t *p);
+snd_pulse_t *pulse_new();
+void pulse_free(snd_pulse_t *p);
 
-int polyp_connect(snd_polyp_t *p, const char *server);
+int pulse_connect(snd_pulse_t *p, const char *server);
 
-void polyp_poll_activate(snd_polyp_t *p);
-void polyp_poll_deactivate(snd_polyp_t *p);
-int polyp_poll_descriptors_count(snd_polyp_t *p);
-int polyp_poll_descriptors(snd_polyp_t *p, struct pollfd *pfd, unsigned int space);
-int polyp_poll_revents(snd_polyp_t *p, struct pollfd *pfd, unsigned int nfds, unsigned short *revents);
+void pulse_poll_activate(snd_pulse_t *p);
+void pulse_poll_deactivate(snd_pulse_t *p);
+int pulse_poll_descriptors_count(snd_pulse_t *p);
+int pulse_poll_descriptors(snd_pulse_t *p, struct pollfd *pfd, unsigned int space);
+int pulse_poll_revents(snd_pulse_t *p, struct pollfd *pfd, unsigned int nfds, unsigned short *revents);

@@ -1,5 +1,5 @@
 /*
- * ALSA <-> Polypaudio PCM I/O plugin
+ * ALSA <-> PulseAudio PCM I/O plugin
  *
  * Copyright (c) 2006 by Pierre Ossman <ossman@cendio.se>
  *
@@ -24,12 +24,12 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 
-#include "polyp.h"
+#include "pulse.h"
 
-typedef struct snd_pcm_polyp {
+typedef struct snd_pcm_pulse {
 	snd_pcm_ioplug_t io;
 
-    snd_polyp_t *p;
+    snd_pulse_t *p;
 
     char *device;
 
@@ -44,9 +44,9 @@ typedef struct snd_pcm_polyp {
     pa_sample_spec ss;
     unsigned int frame_size;
     pa_buffer_attr buffer_attr;
-} snd_pcm_polyp_t;
+} snd_pcm_pulse_t;
 
-static void update_ptr(snd_pcm_polyp_t *pcm)
+static void update_ptr(snd_pcm_pulse_t *pcm)
 {
     size_t size;
 
@@ -63,9 +63,9 @@ static void update_ptr(snd_pcm_polyp_t *pcm)
     pcm->last_size = size;
 }
 
-static int polyp_start(snd_pcm_ioplug_t *io)
+static int pulse_start(snd_pcm_ioplug_t *io)
 {
-	snd_pcm_polyp_t *pcm = io->private_data;
+	snd_pcm_pulse_t *pcm = io->private_data;
 	pa_operation *o;
 	int err = 0;
 
@@ -76,14 +76,14 @@ static int polyp_start(snd_pcm_ioplug_t *io)
 
     assert(pcm->stream);
 
-    err = polyp_check_connection(pcm->p);
+    err = pulse_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
-    o = pa_stream_cork(pcm->stream, 0, polyp_stream_success_cb, pcm->p);
+    o = pa_stream_cork(pcm->stream, 0, pulse_stream_success_cb, pcm->p);
     assert(o);
 
-    err = polyp_wait_operation(pcm->p, o);
+    err = pulse_wait_operation(pcm->p, o);
 
     pa_operation_unref(o);
 
@@ -98,9 +98,9 @@ finish:
 	return err;
 }
 
-static int polyp_stop(snd_pcm_ioplug_t *io)
+static int pulse_stop(snd_pcm_ioplug_t *io)
 {
-	snd_pcm_polyp_t *pcm = io->private_data;
+	snd_pcm_pulse_t *pcm = io->private_data;
 	pa_operation *o;
 	int err = 0;
 
@@ -111,14 +111,14 @@ static int polyp_stop(snd_pcm_ioplug_t *io)
 
     assert(pcm->stream);
 
-    err = polyp_check_connection(pcm->p);
+    err = pulse_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
-    o = pa_stream_flush(pcm->stream, polyp_stream_success_cb, pcm->p);
+    o = pa_stream_flush(pcm->stream, pulse_stream_success_cb, pcm->p);
     assert(o);
 
-    err = polyp_wait_operation(pcm->p, o);
+    err = pulse_wait_operation(pcm->p, o);
 
     pa_operation_unref(o);
 
@@ -127,10 +127,10 @@ static int polyp_stop(snd_pcm_ioplug_t *io)
         goto finish;
     }
 
-    o = pa_stream_cork(pcm->stream, 1, polyp_stream_success_cb, pcm->p);
+    o = pa_stream_cork(pcm->stream, 1, pulse_stream_success_cb, pcm->p);
     assert(o);
 
-    err = polyp_wait_operation(pcm->p, o);
+    err = pulse_wait_operation(pcm->p, o);
 
     pa_operation_unref(o);
 
@@ -145,9 +145,9 @@ finish:
 	return err;
 }
 
-int polyp_drain(snd_pcm_ioplug_t *io)
+int pulse_drain(snd_pcm_ioplug_t *io)
 {
-    snd_pcm_polyp_t *pcm = io->private_data;
+    snd_pcm_pulse_t *pcm = io->private_data;
 	pa_operation *o;
 	int err = 0;
 
@@ -158,14 +158,14 @@ int polyp_drain(snd_pcm_ioplug_t *io)
 
     assert(pcm->stream);
 
-    err = polyp_check_connection(pcm->p);
+    err = pulse_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
-    o = pa_stream_drain(pcm->stream, polyp_stream_success_cb, pcm->p);
+    o = pa_stream_drain(pcm->stream, pulse_stream_success_cb, pcm->p);
     assert(o);
 
-    err = polyp_wait_operation(pcm->p, o);
+    err = pulse_wait_operation(pcm->p, o);
 
     pa_operation_unref(o);
 
@@ -180,9 +180,9 @@ finish:
 	return err;
 }
 
-static snd_pcm_sframes_t polyp_pointer(snd_pcm_ioplug_t *io)
+static snd_pcm_sframes_t pulse_pointer(snd_pcm_ioplug_t *io)
 {
-	snd_pcm_polyp_t *pcm = io->private_data;
+	snd_pcm_pulse_t *pcm = io->private_data;
 	int err = 0;
 
     assert(pcm);
@@ -192,7 +192,7 @@ static snd_pcm_sframes_t polyp_pointer(snd_pcm_ioplug_t *io)
 
     assert(pcm->stream);
 
-    err = polyp_check_connection(pcm->p);
+    err = pulse_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
@@ -206,10 +206,10 @@ finish:
 	return err;
 }
 
-static int polyp_delay(snd_pcm_ioplug_t *io,
+static int pulse_delay(snd_pcm_ioplug_t *io,
                        snd_pcm_sframes_t *delayp)
 {
-	snd_pcm_polyp_t *pcm = io->private_data;
+	snd_pcm_pulse_t *pcm = io->private_data;
 	int err = 0;
 	pa_usec_t lat;
 
@@ -220,7 +220,7 @@ static int polyp_delay(snd_pcm_ioplug_t *io,
 
     assert(pcm->stream);
 
-    err = polyp_check_connection(pcm->p);
+    err = pulse_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
@@ -237,12 +237,12 @@ finish:
 	return err;
 }
 
-static snd_pcm_sframes_t polyp_write(snd_pcm_ioplug_t *io,
+static snd_pcm_sframes_t pulse_write(snd_pcm_ioplug_t *io,
                                      const snd_pcm_channel_area_t *areas,
                                      snd_pcm_uframes_t offset,
                                      snd_pcm_uframes_t size)
 {
-	snd_pcm_polyp_t *pcm = io->private_data;
+	snd_pcm_pulse_t *pcm = io->private_data;
 	const char *buf;
 	int err = 0;
 
@@ -253,7 +253,7 @@ static snd_pcm_sframes_t polyp_write(snd_pcm_ioplug_t *io,
 
     assert(pcm->stream);
 
-    err = polyp_check_connection(pcm->p);
+    err = pulse_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
@@ -270,7 +270,7 @@ static snd_pcm_sframes_t polyp_write(snd_pcm_ioplug_t *io,
     update_ptr(pcm);
 
     if (pcm->last_size < pcm->buffer_attr.minreq)
-        polyp_poll_deactivate(pcm->p);
+        pulse_poll_deactivate(pcm->p);
 
     err = size;
 
@@ -280,12 +280,12 @@ finish:
 	return err;
 }
 
-static snd_pcm_sframes_t polyp_read(snd_pcm_ioplug_t *io,
+static snd_pcm_sframes_t pulse_read(snd_pcm_ioplug_t *io,
                                     const snd_pcm_channel_area_t *areas,
                                     snd_pcm_uframes_t offset,
                                     snd_pcm_uframes_t size)
 {
-	snd_pcm_polyp_t *pcm = io->private_data;
+	snd_pcm_pulse_t *pcm = io->private_data;
 	void *dst_buf, *src_buf;
 	size_t remain_size, frag_length;
 	int err = 0;
@@ -297,7 +297,7 @@ static snd_pcm_sframes_t polyp_read(snd_pcm_ioplug_t *io,
 
     assert(pcm->stream);
 
-    err = polyp_check_connection(pcm->p);
+    err = pulse_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
@@ -334,7 +334,7 @@ static snd_pcm_sframes_t polyp_read(snd_pcm_ioplug_t *io,
     update_ptr(pcm);
 
     if (pcm->last_size < pcm->buffer_attr.minreq)
-        polyp_poll_deactivate(pcm->p);
+        pulse_poll_deactivate(pcm->p);
 
     err = size - (remain_size / pcm->frame_size);
 
@@ -346,17 +346,17 @@ finish:
 
 static void stream_request_cb(pa_stream *p, size_t length, void *userdata)
 {
-    snd_pcm_polyp_t *pcm = userdata;
+    snd_pcm_pulse_t *pcm = userdata;
 
     assert(pcm);
     assert(pcm->p);
 
-    polyp_poll_activate(pcm->p);
+    pulse_poll_activate(pcm->p);
 }
 
-static int polyp_pcm_poll_descriptors_count(snd_pcm_ioplug_t *io)
+static int pulse_pcm_poll_descriptors_count(snd_pcm_ioplug_t *io)
 {
-	snd_pcm_polyp_t *pcm = io->private_data;
+	snd_pcm_pulse_t *pcm = io->private_data;
 	int count;
 
     assert(pcm);
@@ -364,16 +364,16 @@ static int polyp_pcm_poll_descriptors_count(snd_pcm_ioplug_t *io)
 
     pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    count = polyp_poll_descriptors_count(pcm->p);
+    count = pulse_poll_descriptors_count(pcm->p);
 
     pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return count;
 }
 
-static int polyp_pcm_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd, unsigned int space)
+static int pulse_pcm_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd, unsigned int space)
 {
-	snd_pcm_polyp_t *pcm = io->private_data;
+	snd_pcm_pulse_t *pcm = io->private_data;
 	int err;
 
     assert(pcm);
@@ -381,16 +381,16 @@ static int polyp_pcm_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd, 
 
     pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    err = polyp_poll_descriptors(pcm->p, pfd, space);
+    err = pulse_poll_descriptors(pcm->p, pfd, space);
 
     pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
 }
 
-static int polyp_pcm_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd, unsigned int nfds, unsigned short *revents)
+static int pulse_pcm_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd, unsigned int nfds, unsigned short *revents)
 {
-	snd_pcm_polyp_t *pcm = io->private_data;
+	snd_pcm_pulse_t *pcm = io->private_data;
 	int err = 0;
 
     assert(pcm);
@@ -398,7 +398,7 @@ static int polyp_pcm_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd, unsi
 
     pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    err = polyp_poll_revents(pcm->p, pfd, nfds, revents);
+    err = pulse_poll_revents(pcm->p, pfd, nfds, revents);
     if (err < 0)
         goto finish;
 
@@ -425,10 +425,10 @@ finish:
 	return err;
 }
 
-static int polyp_prepare(snd_pcm_ioplug_t *io)
+static int pulse_prepare(snd_pcm_ioplug_t *io)
 {
     pa_channel_map map;
-    snd_pcm_polyp_t *pcm = io->private_data;
+    snd_pcm_pulse_t *pcm = io->private_data;
     int err = 0;
 
     assert(pcm);
@@ -438,12 +438,12 @@ static int polyp_prepare(snd_pcm_ioplug_t *io)
 
     if (pcm->stream) {
         pa_stream_disconnect(pcm->stream);
-        polyp_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_TERMINATED);
+        pulse_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_TERMINATED);
         pa_stream_unref(pcm->stream);
         pcm->stream = NULL;
     }
 
-    err = polyp_check_connection(pcm->p);
+    err = pulse_check_connection(pcm->p);
     if (err < 0)
         goto finish;
 
@@ -457,7 +457,7 @@ static int polyp_prepare(snd_pcm_ioplug_t *io)
             pa_channel_map_init_auto(&map, pcm->ss.channels, PA_CHANNEL_MAP_ALSA));
     assert(pcm->stream);
 
-    pa_stream_set_state_callback(pcm->stream, polyp_stream_state_cb, pcm->p);
+    pa_stream_set_state_callback(pcm->stream, pulse_stream_state_cb, pcm->p);
 
     if (io->stream == SND_PCM_STREAM_PLAYBACK) {
         pa_stream_set_write_callback(pcm->stream, stream_request_cb, pcm);
@@ -469,7 +469,7 @@ static int polyp_prepare(snd_pcm_ioplug_t *io)
 	        PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING);
     }
 
-    err = polyp_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_READY);
+    err = pulse_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_READY);
     if (err < 0) {
         fprintf(stderr, "*** POLYPAUDIO: Unable to create stream.\n");
         pa_stream_unref(pcm->stream);
@@ -487,9 +487,9 @@ finish:
 	return err;
 }
 
-static int polyp_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
+static int pulse_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 {
-    snd_pcm_polyp_t *pcm = io->private_data;
+    snd_pcm_pulse_t *pcm = io->private_data;
 	int err = 0;
 
     assert(pcm);
@@ -545,9 +545,9 @@ finish:
 	return err;
 }
 
-static int polyp_close(snd_pcm_ioplug_t *io)
+static int pulse_close(snd_pcm_ioplug_t *io)
 {
-	snd_pcm_polyp_t *pcm = io->private_data;
+	snd_pcm_pulse_t *pcm = io->private_data;
 
     assert(pcm);
 
@@ -555,14 +555,14 @@ static int polyp_close(snd_pcm_ioplug_t *io)
 
     if (pcm->stream) {
         pa_stream_disconnect(pcm->stream);
-        polyp_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_TERMINATED);
+        pulse_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_TERMINATED);
         pa_stream_unref(pcm->stream);
     }
 
     pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
     if (pcm->p)
-        polyp_free(pcm->p);
+        pulse_free(pcm->p);
 
     if (pcm->device)
         free(pcm->device);
@@ -572,38 +572,38 @@ static int polyp_close(snd_pcm_ioplug_t *io)
 	return 0;
 }
 
-static snd_pcm_ioplug_callback_t polyp_playback_callback = {
-    .start = polyp_start,
-    .stop = polyp_stop,
-    .drain = polyp_drain,
-    .pointer = polyp_pointer,
-    .transfer = polyp_write,
-    .delay = polyp_delay,
-    .poll_descriptors_count = polyp_pcm_poll_descriptors_count,
-    .poll_descriptors = polyp_pcm_poll_descriptors,
-    .poll_revents = polyp_pcm_poll_revents,
-    .prepare = polyp_prepare,
-    .hw_params = polyp_hw_params,
-    .close = polyp_close,
+static snd_pcm_ioplug_callback_t pulse_playback_callback = {
+    .start = pulse_start,
+    .stop = pulse_stop,
+    .drain = pulse_drain,
+    .pointer = pulse_pointer,
+    .transfer = pulse_write,
+    .delay = pulse_delay,
+    .poll_descriptors_count = pulse_pcm_poll_descriptors_count,
+    .poll_descriptors = pulse_pcm_poll_descriptors,
+    .poll_revents = pulse_pcm_poll_revents,
+    .prepare = pulse_prepare,
+    .hw_params = pulse_hw_params,
+    .close = pulse_close,
 };
 
 
-static snd_pcm_ioplug_callback_t polyp_capture_callback = {
-    .start = polyp_start,
-    .stop = polyp_stop,
-    .pointer = polyp_pointer,
-    .transfer = polyp_read,
-    .delay = polyp_delay,
-    .poll_descriptors_count = polyp_pcm_poll_descriptors_count,
-    .poll_descriptors = polyp_pcm_poll_descriptors,
-    .poll_revents = polyp_pcm_poll_revents,
-    .prepare = polyp_prepare,
-    .hw_params = polyp_hw_params,
-    .close = polyp_close,
+static snd_pcm_ioplug_callback_t pulse_capture_callback = {
+    .start = pulse_start,
+    .stop = pulse_stop,
+    .pointer = pulse_pointer,
+    .transfer = pulse_read,
+    .delay = pulse_delay,
+    .poll_descriptors_count = pulse_pcm_poll_descriptors_count,
+    .poll_descriptors = pulse_pcm_poll_descriptors,
+    .poll_revents = pulse_pcm_poll_revents,
+    .prepare = pulse_prepare,
+    .hw_params = pulse_hw_params,
+    .close = pulse_close,
 };
 
 
-static int polyp_hw_constraint(snd_pcm_polyp_t *pcm)
+static int pulse_hw_constraint(snd_pcm_pulse_t *pcm)
 {
     snd_pcm_ioplug_t *io = &pcm->io;
 
@@ -666,13 +666,13 @@ static int polyp_hw_constraint(snd_pcm_polyp_t *pcm)
     return 0;
 }
 
-SND_PCM_PLUGIN_DEFINE_FUNC(polyp)
+SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 {
 	snd_config_iterator_t i, next;
 	const char *server = NULL;
 	const char *device = NULL;
 	int err;
-	snd_pcm_polyp_t *pcm;
+	snd_pcm_pulse_t *pcm;
 
 	snd_config_for_each(i, next, conf) {
 		snd_config_t *n = snd_config_iterator_entry(i);
@@ -704,13 +704,13 @@ SND_PCM_PLUGIN_DEFINE_FUNC(polyp)
     if (device)
         pcm->device = strdup(device);
 
-    pcm->p = polyp_new();
+    pcm->p = pulse_new();
     if (!pcm->p) {
         err = -EIO;
         goto error;
     }
 
-    err = polyp_connect(pcm->p, server);
+    err = pulse_connect(pcm->p, server);
     if (err < 0)
         goto error;
 
@@ -720,14 +720,14 @@ SND_PCM_PLUGIN_DEFINE_FUNC(polyp)
 	pcm->io.poll_events = 0;
 	pcm->io.mmap_rw = 0;
 	pcm->io.callback = stream == SND_PCM_STREAM_PLAYBACK ?
-		&polyp_playback_callback : &polyp_capture_callback;
+		&pulse_playback_callback : &pulse_capture_callback;
 	pcm->io.private_data = pcm;
  
 	err = snd_pcm_ioplug_create(&pcm->io, name, stream, mode);
 	if (err < 0)
 		goto error;
 
-    err = polyp_hw_constraint(pcm);
+    err = pulse_hw_constraint(pcm);
     if (err < 0) {
 		snd_pcm_ioplug_delete(&pcm->io);
         goto error;
@@ -738,11 +738,11 @@ SND_PCM_PLUGIN_DEFINE_FUNC(polyp)
 
 error:
     if (pcm->p)
-        polyp_free(pcm->p);
+        pulse_free(pcm->p);
 
 	free(pcm);
 
 	return err;
 }
 
-SND_PCM_PLUGIN_SYMBOL(polyp);
+SND_PCM_PLUGIN_SYMBOL(pulse);

@@ -1,8 +1,8 @@
 if HAVE_JACK
 JACKDIR = jack
 endif
-if HAVE_POLYP
-POLYPDIR = polyp
+if HAVE_PULSE
+PULSEDIR = pulse
 endif
 if HAVE_SAMPLERATE
 SAMPLERATEDIR = rate
@@ -11,7 +11,7 @@ if HAVE_AVCODEC
 A52DIR = a52
 endif
 
-SUBDIRS = oss mix $(JACKDIR) $(POLYPDIR) $(SAMPLERATEDIR) $(A52DIR) doc
+SUBDIRS = oss mix $(JACKDIR) $(PULSEDIR) $(SAMPLERATEDIR) $(A52DIR) doc
 EXTRA_DIST = hgcompile version COPYING.GPL
 AUTOMAKE_OPTIONS = foreign
 

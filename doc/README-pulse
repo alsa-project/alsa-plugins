@@ -1,35 +1,35 @@
-Polypaudio <--> ALSA plugins
+PulseAudio <--> ALSA plugins
 ============================
 
-This plugin allows any program that uses the ALSA API to access a Polypaudio
+This plugin allows any program that uses the ALSA API to access a PulseAudio
 sound daemon. In other words, native ALSA applications can play and record
 sound across a network.
 
 There are two plugins in the suite, one for PCM and one for mixer control. A
 typical configuration will look like:
 
-    pcm.polyp {
-        type polyp
+    pcm.pulse {
+        type pulse
     }
 
-    ctl.polyp {
-        type polyp
+    ctl.pulse {
+        type pulse
     }
 
-Put the above in ~/.asoundrc, or /etc/asound.conf, and use "polyp" as device
+Put the above in ~/.asoundrc, or /etc/asound.conf, and use "pulse" as device
 in your ALSA applications. For example:
 
-    % aplay -Dpolyp foo.wav
-    % amixer -Dpolyp
+    % aplay -Dpulse foo.wav
+    % amixer -Dpulse
 
-Polypaudio will accept more or less any format you throw at it. So a plug
+PulseAudio will accept more or less any format you throw at it. So a plug
 wrapper is unnecessary. Mixing is also handled so dmix will only cause a
 performance hit without any gain.
 
-The plugins will respect your Polypaudio environment variables (like
-POLYP_SERVER), but you can override these in ALSA's configuration files.
+The plugins will respect your PulseAudio environment variables (like
+PULSE_SERVER), but you can override these in ALSA's configuration files.
 
-Both plugins accept the "server" parameter, specifying which Polypaudio server
+Both plugins accept the "server" parameter, specifying which PulseAudio server
 to contact. Both also accept the "device" parameter, which indicate which
 source and sink to use.
 
