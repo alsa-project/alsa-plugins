@@ -16,7 +16,7 @@ AC_CHECK_LIB(asound, snd_pcm_ioplug_create,,
 PKG_CHECK_MODULES(JACK, jack >= 0.98, [HAVE_JACK=yes], [HAVE_JACK=no])
 AM_CONDITIONAL(HAVE_JACK, test x$HAVE_JACK = xyes)
 
-PKG_CHECK_MODULES(PulseAudio, [libpulse >= 0.9.2], [HAVE_PULSE=yes], [HAVE_PULSE=no])
+PKG_CHECK_MODULES(pulseaudio, [libpulse >= 0.9.2], [HAVE_PULSE=yes], [HAVE_PULSE=no])
 AM_CONDITIONAL(HAVE_PULSE, test x$HAVE_PULSE = xyes)
 
 PKG_CHECK_MODULES(samplerate, [samplerate], [HAVE_SAMPLERATE=yes], [HAVE_SAMPLERATE=no])
