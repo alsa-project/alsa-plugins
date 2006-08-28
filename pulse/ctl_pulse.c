@@ -689,10 +689,10 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
     ctl->ext.version = SND_CTL_EXT_VERSION;
     ctl->ext.card_idx = 0;
     strncpy(ctl->ext.id, "pulse", sizeof(ctl->ext.id) - 1);
-    strncpy(ctl->ext.driver, "Polypaudio plugin", sizeof(ctl->ext.driver) - 1);
-    strncpy(ctl->ext.name, "Polypaudio", sizeof(ctl->ext.name) - 1);
-    strncpy(ctl->ext.longname, "Polypaudio", sizeof(ctl->ext.longname) - 1);
-    strncpy(ctl->ext.mixername, "Polypaudio", sizeof(ctl->ext.mixername) - 1);
+    strncpy(ctl->ext.driver, "PulseAudio plugin", sizeof(ctl->ext.driver) - 1);
+    strncpy(ctl->ext.name, "PulseAudio", sizeof(ctl->ext.name) - 1);
+    strncpy(ctl->ext.longname, "PulseAudio", sizeof(ctl->ext.longname) - 1);
+    strncpy(ctl->ext.mixername, "PulseAudio", sizeof(ctl->ext.mixername) - 1);
     ctl->ext.poll_fd = -1;
     ctl->ext.callback = &pulse_ext_callback;
     ctl->ext.private_data = ctl;

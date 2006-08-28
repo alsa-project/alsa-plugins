@@ -471,7 +471,7 @@ static int pulse_prepare(snd_pcm_ioplug_t *io)
 
     err = pulse_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_READY);
     if (err < 0) {
-        fprintf(stderr, "*** POLYPAUDIO: Unable to create stream.\n");
+        fprintf(stderr, "*** PULSEAUDIO: Unable to create stream.\n");
         pa_stream_unref(pcm->stream);
         pcm->stream = NULL;
         goto finish;
@@ -524,7 +524,7 @@ static int pulse_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
         pcm->ss.format = PA_SAMPLE_FLOAT32BE;
         break;
     default:
-        fprintf(stderr, "*** POLYPAUDIO: unsupported format %s\n",
+        fprintf(stderr, "*** PULSEAUDIO: unsupported format %s\n",
             snd_pcm_format_name(io->format));
         err = -EINVAL;
         goto finish;
@@ -715,7 +715,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
         goto error;
 
 	pcm->io.version = SND_PCM_IOPLUG_VERSION;
-	pcm->io.name = "ALSA <-> Polypaudio PCM I/O Plugin";
+	pcm->io.name = "ALSA <-> PulseAudio PCM I/O Plugin";
 	pcm->io.poll_fd = -1;
 	pcm->io.poll_events = 0;
 	pcm->io.mmap_rw = 0;
