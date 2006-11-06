@@ -1,0 +1,183 @@
+The Debian Package osso-dsp-plugin-alsa
+----------------------------
+
+Comments regarding the Package
+
+Eduardo Valentin <eduardo.valentin@indt.org.br>, Wed, 5 Apr 2006 10:28:06 +0300
+
+
+OSSO DSP SW  <--> ALSA DSP plugin
+========================
+
+This plugin converts the ALSA API over PCM task nodes protocol. In this way,
+ALSA native applications can run over DSP Gateway and use DSP PCM task nodes.
+
+This plugin provides the PCM type "alsa_dsp".  The typical configuration
+looks like below:
+
+	# PCM
+	pcm.!default {
+	        type alsa_dsp
+        	playback_device_file ["/dev/dsptask/pcm2"]
+	        recording_device_file ["/dev/dsptask/pcm_rec"]
+	}
+
+Put the above to ~/.asoundrc (or /etc/asound.conf or /usr/share/alsa/alsa.conf), 
+and use "default" PCM with your ALSA apps.  For example:
+
+	% aplay -Ddefault foo.wav
+	% arecord -Ddefault foo.wav
+
+The alsa_dsp plugin can have two options for pcm interface:
+a. playback_device_file: this is a list of PCM task node device files whose
+alsa_dsp plugin is allowed to use to do playback. For example: /dev/dsptask/pcm2.
+b. recording_device_file: this is a list of PCM task node device files whose
+alsa_dsp plugin is allowed to use to do recording. For example: /dev/dsptask/pcm_rec.
+
+The alsa_dsp plugin will probe the dsp task node files you provide and 
+will use the first one whose dsp PCM task is in UNINITIALISED state.
+If no dsp PCM task node is usable, alsa_dsp plugin will return an ENODEV
+error code.
+
+For the control interface, this plugin provides the CTL type "dsp_ctl". A
+typical configuration is:
+	# Mixer
+	ctl.!default {
+        	type dsp_ctl
+	        playback_devices ["/dev/dsptask/pcm2"]
+        	recording_devices ["/dev/dsptask/pcm_rec"]
+	}
+
+Put the above to ~/.asoundrc (or /etc/asound.conf or /usr/share/alsa/alsa.conf), 
+and use "default" CTL with your ALSA apps.  For example:
+	% alsamixer -Ddefault 
+
+The dsp_ctl plugin can have two options for ctl interface:
+a. playback_devices: this is a list of PCM task node device files whose
+dsp_ctl plugin is allowed to use to do volume control changing. These
+devices will be handled under the "PCM Playback Volume" and "PCM Playback Switch" 
+control names. 
+b. recording_devices: this is a list of PCM task node device files whose
+dsp_ctl plugin is allowed to use to do volume control changing. 
+These devices will be handled under the "Capture Switch" control name.
+
+# Supported formats:
+
+Playback: 
+	16-bit PCM formats: 
+		S16_LE	
+		S16_BE	
+		U16_LE	
+		U16_BE	
+	8-bit PCM formats:
+		A_LAW	
+		MU_LAW	
+		U8	
+		S8
+	Rates: 
+		8 KHz, 11.025 KHz, 12 KHz, 16 KHz, 
+		22.050 KHz, 24 KHz, 32 KHz, 44.1 KHz, 48 KHz
+	Channels: Mono and Stereo 
+Recording:
+	16-bit PCM formats: 
+		S16_LE	
+	8-bit PCM formats:
+		A_LAW	
+		MU_LAW	
+	Rates: 
+		8 KHz
+	Channels: Mono
+
+# Compilation
+To cross-compile the plugin inside scratchbox environment, you will
+need a libasound2 version of binaries and header files installed.
+Pthreads is also required. The source directory provides a Makefile.
+If you just type:
+
+	% make clean
+	% make 
+
+under the source tree, it will generate the binaries under the
+"bin" sub-directory. Like:
+
+libasound_module_ctl_dsp_ctl.so  and libasound_module_pcm_alsa_dsp.so
+
+The libasound_module_ctl_dsp_ctl.so is currently a symbolic link to
+libasound_module_pcm_alsa_dsp.so. 
+
+You can just copy then to your /usr/lib/alsa-lib/ directory inside your 
+target file system. 
+
+You can also modify the behaviour of this plugin using macro definitions
+while compiling it. Here are macros whose can be used in CFLAGS (-D <macro>):
+	ERROR_DEBUG		It enables error debug output. You have to 
+				change in "debug.h" file. Default is to debug.
+	DEBUG 			It enables debug output. You have to change in
+				"debug.h" file. Default is not to debug.
+	NORMAL_DSP_TASK		It enables utilization of extended fields in
+				audio_status_info_t data structure (mute,
+				samples_played_high, samples_played_low).
+				You can change it in "Makefile". Default
+				is NORMAL_DSP_TASK enabled.
+	USE_RESOURCE_MANAGER	If set, the resource manager D-BUS interface
+				will be used for power management instead of
+				the sysfs file.
+	ERROR_ON_PM_FAILURE	It controls this plugin behaviour if it fails
+				while openning MIC power management file 
+				(/sys/devices/platform/audio-i2c/mic_enable)
+				or calling the resource manager request()
+				method (if USE_RESOURCE_MANAGER is set).
+				If you enable this macro, this plugin will 
+				return an error code. Otherwise, it will
+				just print a debug message, and will return
+				sucess. You can change it in Makefile. Default 
+				is ERROR_ON_PM_FAILURE disabled.
+
+# Installation
+The plugin is installed in /usr/lib/alsa-lib directory as default,
+which is the default search path of additional plugins for alsa-lib.
+
+This plugin is expected to be compatible with any standard ALSA application.
+The only requirement is you have to compile it against the same libasound2 you
+have installed in your target system. You have to enable the external plugins
+support in libasound2:
+
+	% cd $LIB_ASOUND2_SRC
+	% ./configure --with-pcm-plugins=extplug
+
+You can get the latest version of libasound2 in http://www.alsa-project.org.
+There you can find more instructions of how to compile libasound2. The cross-compilation
+for ARM architecture is straightforward inside the scratchbox environment.
+
+
+# Applications
+
+Alsa-utils:
+Also from http://www.alsa-project.org, you can find alsa-utils package sources.
+This package constains standard ALSA application, like amixer, alsamixer and
+aplay/arecord.
+
+The compilation of alsa-utils is also straightforward inside scratchbox environment.
+The only requirement is you will need to have libasound2 (and libncurses) installed 
+inside your scratchbox environment to be able to compile alsa-utils.
+
+After compiling and installing applications on your target, you can
+use them with this plugin specifing the correct pcm device. For example,
+if you have installed alsaplayer on your target, you can specify an alsa pcm
+device with:
+	target # alsaplayer -d default
+
+#Limitation
+
+- While the plugin is using a pcm task node, another applications,
+for example gstreamer, can not use the same task node. This will cause
+unexpected behaviour.
+- If an application does not close alsa device properly, this plugin
+will not have chance to release all reserved resouces. One expected 
+behaviour in this case is to have -EBUSY error for following applications
+whose try to open the same alsa device. Partialy solved (version 0.6)
+with __attribute__((destructor)) functions. But if the application 
+receives an uncaught signal, resources may be kept unreleased.
+- If many requests to volume information read / write is done in the
+same alsa device while it is being used to do playback, this playback
+could be affected and some little stops can be heard.
