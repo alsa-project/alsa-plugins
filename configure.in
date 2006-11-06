@@ -3,6 +3,8 @@ AC_INIT(oss/pcm_oss.c)
 AM_INIT_AUTOMAKE(alsa-plugins, 1.0.13)
 AC_PREFIX_DEFAULT(/usr)
 
+AC_CONFIG_HEADERS(config.h)
+
 AC_PROG_CC
 AC_PROG_INSTALL
 AC_DISABLE_STATIC
@@ -21,6 +23,13 @@ AM_CONDITIONAL(HAVE_PULSE, test x$HAVE_PULSE = xyes)
 
 PKG_CHECK_MODULES(samplerate, [samplerate], [HAVE_SAMPLERATE=yes], [HAVE_SAMPLERATE=no])
 AM_CONDITIONAL(HAVE_SAMPLERATE, test x$HAVE_SAMPLERATE = xyes)
+
+PKG_CHECK_MODULES(DBUS, [dbus-1], [HAVE_DBUS=yes], [HAVE_DBUS=no])
+AM_CONDITIONAL(HAVE_DBUS, test x$HAVE_DBUS = xyes)
+
+if test "$HAVE_DBUS" = "yes"; then
+        AC_DEFINE(USE_RESOURCE_MANAGER, 1,"Use dbus server as a resouce manager")
+fi
 
 AC_ARG_WITH([avcodec-includedir],
 	[--with-avcodec-includedir=dir    AVcodec include directory],
@@ -53,5 +62,6 @@ AC_OUTPUT([
 	mix/Makefile
 	rate/Makefile
 	a52/Makefile
+	maemo/Makefile
 	doc/Makefile
 ])
