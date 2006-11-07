@@ -69,10 +69,12 @@ union semun {
 static int dsp_protocol_flush(dsp_protocol_t * dsp_protocol);
 static int dsp_protocol_send_command(dsp_protocol_t * dsp_protocol,
 				     const short int command);
-static void dsp_protocol_linear2Q15(const short int input,
-				    short int *scale, short int *power2);
-static void dsp_protocol_Q152linear(const short int scale,
-				    const short int power2, short int *output);
+static void dsp_protocol_linear2Q15(const unsigned short int input,
+				    unsigned short int *scale, 
+				    unsigned short int *power2);
+static void dsp_protocol_Q152linear(const unsigned short int scale,
+				    const unsigned short int power2, 
+				    unsigned short int *output);
 static int dsp_protocol_update_state(dsp_protocol_t * dsp_protocol);
 static inline int dsp_protocol_get_sem(dsp_protocol_t * dsp_protocol);
 static inline int dsp_protocol_lock_dev(dsp_protocol_t * dsp_protocol);
@@ -90,8 +92,8 @@ static inline int dsp_protocol_unlock_dev(dsp_protocol_t * dsp_protocol);
  */
 int dsp_protocol_create(dsp_protocol_t ** dsp_protocol)
 {
+	pthread_mutex_t mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
 	int ret = 0;
-	pthread_mutexattr_t mattr;
 	DENTER();
 	*dsp_protocol = (dsp_protocol_t *) calloc(1, sizeof(dsp_protocol_t));
 	if ((*dsp_protocol) == NULL) {
@@ -107,9 +109,7 @@ int dsp_protocol_create(dsp_protocol_t ** dsp_protocol)
 	(*dsp_protocol)->bridge_buffer_size = 0;
 	(*dsp_protocol)->mmap_buffer_size = 0;
 	(*dsp_protocol)->mmap_buffer = NULL;
-	pthread_mutexattr_init(&mattr);
-	pthread_mutexattr_settype(PTHREAD_MUTEX_ERRORCHECK_NP);
-	pthread_mutex_init(&((*dsp_protocol)->mutex), &mattr);
+	(*dsp_protocol)->mutex = mutex;
 	(*dsp_protocol)->sem_set_id = -1;
 #ifdef USE_RESOURCE_MANAGER
         (*dsp_protocol)->dbus_connection = dbus_bus_get(DBUS_BUS_SYSTEM, NULL);
@@ -719,7 +719,7 @@ int dsp_protocol_set_volume(dsp_protocol_t * dsp_protocol,
 int dsp_protocol_get_volume(dsp_protocol_t * dsp_protocol,
 			    unsigned char *left, unsigned char *right)
 {
-	short int tmp;
+	unsigned short int tmp;
 	int ret;
 	audio_status_info_t audio_status_info;
 	DENTER();
@@ -1050,8 +1050,9 @@ static int dsp_protocol_send_command(dsp_protocol_t * dsp_protocol,
  * Converts a 0 - 100 value to a Q15 format value.
  * 
  */
-static void dsp_protocol_linear2Q15(const short int input,
-				    short int *scale, short int *power2)
+static void dsp_protocol_linear2Q15(const unsigned short int input,
+				    unsigned short int *scale, 
+				    unsigned short int *power2)
 {
 	unsigned long int val = MAGIC_NUMBER * input;
 	DENTER();
@@ -1079,8 +1080,8 @@ static void dsp_protocol_linear2Q15(const short int input,
  * Converts a Q15 format value to a 0 - 100 value.
  * 
  */
-static void dsp_protocol_Q152linear(const short int scale,
-				    const short int power2, short int *output)
+static void dsp_protocol_Q152linear(const unsigned short int scale,
+				    const unsigned short int power2, unsigned short int *output)
 {
 	float result = scale * 1.0 / 0x8000 * pow(2.0, 1.0 * power2) * 100.0;
 	DENTER();

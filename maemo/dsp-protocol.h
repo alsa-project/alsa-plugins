@@ -24,7 +24,7 @@
 #ifndef _DSP_PROTOCOL_H
 #define _DSP_PROTOCOL_H
 
-#define _GNU_SOURCE
+#define __USE_GNU
 #include <features.h>
 #include <pthread.h>
 #include <semaphore.h>

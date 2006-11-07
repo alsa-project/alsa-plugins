@@ -273,7 +273,7 @@ static int dsp_ctl_read_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
 				long *value)
 {
 	int ret = 0;
-	char left, right;
+	unsigned char left, right;
 	snd_ctl_dsp_t *dsp_ctl = ext->private_data;
 	control_list_t *tmp = dsp_ctl->controls[key];
 
@@ -317,7 +317,7 @@ static int dsp_ctl_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
 				 long *value)
 {
 	int ret;
-	char left, right;
+	unsigned char left, right;
 	snd_ctl_dsp_t *dsp_ctl = ext->private_data;
 	control_list_t *tmp = dsp_ctl->controls[key];
 

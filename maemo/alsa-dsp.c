@@ -164,7 +164,6 @@ static snd_pcm_sframes_t alsa_dsp_transfer(snd_pcm_ioplug_t * io,
 						    words);
 	result *= 2;
 	result /= alsa_dsp->bytes_per_frame;
-      out:
 	alsa_dsp->hw_pointer += result;
 	DLEAVE(result);
 	return result;
