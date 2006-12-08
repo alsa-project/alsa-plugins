@@ -10,8 +10,11 @@ endif
 if HAVE_AVCODEC
 A52DIR = a52
 endif
+if HAVE_DBUS
+MAEMODIR = maemo
+endif
 
-SUBDIRS = oss mix $(JACKDIR) $(PULSEDIR) $(SAMPLERATEDIR) $(A52DIR) maemo doc
+SUBDIRS = oss mix $(JACKDIR) $(PULSEDIR) $(SAMPLERATEDIR) $(A52DIR) $(MAEMODIR) doc
 EXTRA_DIST = hgcompile version COPYING.GPL
 AUTOMAKE_OPTIONS = foreign
 
