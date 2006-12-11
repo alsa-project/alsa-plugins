@@ -13,3 +13,5 @@ libasound_module_pcm_alsa_dsp_la_LIBADD = @ALSA_LIBS@
 libasound_module_ctl_dsp_ctl_la_SOURCES = dsp-protocol.c dsp-ctl.c
 libasound_module_ctl_dsp_ctl_la_LIBADD = @ALSA_LIBS@
 
+noinst_HEADERS = constants.h debug.h dsp-protocol.h list.h reporting.h \
+	         types.h
