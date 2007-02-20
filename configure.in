@@ -62,6 +62,7 @@ AC_OUTPUT([
 	mix/Makefile
 	rate/Makefile
 	a52/Makefile
+	rate-lavc/Makefile
 	maemo/Makefile
 	doc/Makefile
 ])
