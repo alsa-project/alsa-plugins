@@ -57,6 +57,7 @@ SAVE_PLUGINS_VERSION
 AC_OUTPUT([
 	Makefile
 	oss/Makefile
+	pph/Makefile
 	jack/Makefile
 	pulse/Makefile
 	mix/Makefile
