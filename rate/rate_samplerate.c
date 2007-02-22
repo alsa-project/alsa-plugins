@@ -38,7 +38,7 @@ static snd_pcm_uframes_t input_frames(void *obj, snd_pcm_uframes_t frames)
 	struct rate_src *rate = obj;
 	if (frames == 0)
 		return 0;
-	return (snd_pcm_uframes_t)(frames * rate->ratio);
+	return (snd_pcm_uframes_t)(frames / rate->ratio);
 }
 
 static snd_pcm_uframes_t output_frames(void *obj, snd_pcm_uframes_t frames)
@@ -46,7 +46,7 @@ static snd_pcm_uframes_t output_frames(void *obj, snd_pcm_uframes_t frames)
 	struct rate_src *rate = obj;
 	if (frames == 0)
 		return 0;
-	return (snd_pcm_uframes_t)(frames / rate->ratio);
+	return (snd_pcm_uframes_t)(frames * rate->ratio);
 }
 
 static void pcm_src_free(void *obj)
