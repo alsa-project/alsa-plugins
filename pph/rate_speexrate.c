@@ -29,7 +29,6 @@
 */
 
 #include <stdio.h>
-#include <samplerate.h>
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_rate.h>
 
