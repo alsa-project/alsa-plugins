@@ -643,23 +643,8 @@ static int pulse_hw_constraint(snd_pcm_pulse_t *pcm)
     if (err < 0)
         return err;
 
-    err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_RATE,
-        8000, 48000);
-    if (err < 0)
-        return err;
-
-    err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
-        1, 4294967295U);
-    if (err < 0)
-        return err;
-
-    err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIODS,
-        2, 4294967295U);
-    if (err < 0)
-        return err;
-
     err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_BUFFER_BYTES,
-        1, 4294967295U);
+        1, 4 * 1024 * 1024);
     if (err < 0)
         return err;
 
