@@ -42,7 +42,7 @@ struct rate_src {
 
 static snd_pcm_uframes_t input_frames(void *obj, snd_pcm_uframes_t frames)
 {
-   int num, den;
+   spx_uint32_t num, den;
    struct rate_src *rate = obj;
    if (frames == 0)
       return 0;
@@ -52,7 +52,7 @@ static snd_pcm_uframes_t input_frames(void *obj, snd_pcm_uframes_t frames)
 
 static snd_pcm_uframes_t output_frames(void *obj, snd_pcm_uframes_t frames)
 {
-   int num, den;
+   spx_uint32_t num, den;
    struct rate_src *rate = obj;
    if (frames == 0)
       return 0;
