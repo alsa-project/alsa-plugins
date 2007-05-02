@@ -16,4 +16,4 @@ install-exec-hook:
 uninstall-hook:
 	rm -f $(DESTDIR)$(libdir)/alsa-lib/libasound_module_rate_speexrate_*.so
 
-noinst_HEADERS = speex_resampler.h
+noinst_HEADERS = speex_resampler.h arch.h fixed_generic.h
