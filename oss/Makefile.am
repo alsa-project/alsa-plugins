@@ -1,8 +1,8 @@
 asound_module_pcm_oss_LTLIBRARIES = libasound_module_pcm_oss.la
 asound_module_ctl_oss_LTLIBRARIES = libasound_module_ctl_oss.la
 
-asound_module_pcm_ossdir = $(libdir)/alsa-lib
-asound_module_ctl_ossdir = $(libdir)/alsa-lib
+asound_module_pcm_ossdir = @ALSA_PLUGIN_DIR@
+asound_module_ctl_ossdir = @ALSA_PLUGIN_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@
 AM_LDFLAGS = -module -avoid-version -export-dynamic

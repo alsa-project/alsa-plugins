@@ -1,6 +1,6 @@
 asound_module_pcm_jack_LTLIBRARIES = libasound_module_pcm_jack.la
 
-asound_module_pcm_jackdir = $(libdir)/alsa-lib
+asound_module_pcm_jackdir = @ALSA_PLUGIN_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@ @JACK_CFLAGS@
 AM_LDFLAGS = -module -avoid-version -export-dynamic

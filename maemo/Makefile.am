@@ -1,8 +1,8 @@
 asound_module_pcm_alsa_dsp_LTLIBRARIES = libasound_module_pcm_alsa_dsp.la
 asound_module_ctl_dsp_ctl_LTLIBRARIES = libasound_module_ctl_dsp_ctl.la
 
-asound_module_pcm_alsa_dspdir = $(libdir)/alsa-lib
-asound_module_ctl_dsp_ctldir = $(libdir)/alsa-lib
+asound_module_pcm_alsa_dspdir = @ALSA_PLUGIN_DIR@
+asound_module_ctl_dsp_ctldir = @ALSA_PLUGIN_DIR@
 
 AM_CFLAGS = -Wall -fPIC -DPIC -O2 @ALSA_CFLAGS@ $(DBUS_CFLAGS)
 AM_LDFLAGS = -shared -lm -ldl -lpthread -module -avoid-version -export-dynamic $(DBUS_LIBS)

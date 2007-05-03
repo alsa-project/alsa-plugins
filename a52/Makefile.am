@@ -1,6 +1,6 @@
 asound_module_pcm_a52_LTLIBRARIES = libasound_module_pcm_a52.la
 
-asound_module_pcm_a52dir = $(libdir)/alsa-lib
+asound_module_pcm_a52dir = @ALSA_PLUGIN_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@ @AVCODEC_CFLAGS@
 AM_LDFLAGS = -module -avoid-version -export-dynamic
