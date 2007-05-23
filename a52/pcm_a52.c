@@ -676,6 +676,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 	rec->channels = channels;
 	rec->format = format;
 
+	avcodec_init();
 	avcodec_register_all();
 	rec->codec = avcodec_find_encoder(CODEC_ID_AC3);
 	if (! rec->codec) {
