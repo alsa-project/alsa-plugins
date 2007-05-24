@@ -32,7 +32,11 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_rate.h>
 
+#ifdef USE_LIBSPEEX
+#include <speex/speex_resampler.h>
+#else
 #include "speex_resampler.h"
+#endif
 
 struct rate_src {
 	int quality;

@@ -32,10 +32,12 @@ if test "$HAVE_DBUS" = "yes"; then
 fi
 
 AC_ARG_WITH([avcodec-includedir],
-	[--with-avcodec-includedir=dir    AVcodec include directory],
+	AS_HELP_STRING([--with-avcodec-includedir=dir],
+		[AVcodec include directory]),
 	[AVCODEC_CFLAGS="-I$withval"], [AVCODEC_CFLAGS=""])
 AC_ARG_WITH([avcodec-libdir],
-	[--with-avcodec-libdir=dir        AVcodec library directory],
+	AS_HELP_STRING([--with-avcodec-libdir=dir],
+		[AVcodec library directory]),
 	[AVCODEC_LIBS="-L$withval"], [AVCODEC_LIBS=""])
 CFLAGS_saved="$CFLAGS"
 LDFLAGS_saved="$LDFLAGS"
@@ -51,6 +53,29 @@ fi
 AM_CONDITIONAL(HAVE_AVCODEC, test x$HAVE_AVCODEC = xyes)
 CFLAGS="$CFLAGS_saved"
 LDFLAGS="$LDFLAGS_saved"
+
+USE_LIBSPEEX=""
+AC_ARG_WITH([speex],
+	AS_HELP_STRING([--with-speex={builtin|lib|no}],
+		[build speex resampler (built-in code, link with external lib, or no build)]),
+	[PPH=$withval], [PPH="lib"])
+
+if test "$PPH" = "lib"; then
+	PKG_CHECK_MODULES(speex, [speex >= 1.2], [USE_LIBSPEEX="yes"], [USE_LIBSPEEX=""])
+	if test "$USE_LIBSPEEX" = "yes"; then
+		AC_CHECK_LIB([speex], [speex_resampler_init],
+			[USE_LIBSPEEX="yes"], [USE_LIBSPEEX=""])
+	fi
+	if test "$USE_LIBSPEEX" = "yes"; then
+		AC_DEFINE(USE_LIBSPEEX, 1, "Link with libspeex for resampler")
+	else
+		echo "No libspeex with resampler unit; use built-in code"
+		PPH="builtin"
+	fi
+fi
+
+AM_CONDITIONAL(HAVE_PPH, test "$PPH" = "builtin" -o "$PPH" = "lib")
+AM_CONDITIONAL(USE_LIBSPEEX, test "$PPH" = "lib")
 
 dnl ALSA plugin directory
 test "x$prefix" = xNONE && prefix=$ac_default_prefix
@@ -87,3 +112,40 @@ AC_OUTPUT([
 	maemo/Makefile
 	doc/Makefile
 ])
+
+dnl Show the build conditions
+
+echo
+echo "Plugin directory: $ALSA_PLUGIN_DIR"
+echo "ALSA_CFLAGS: $ALSA_CFLAGS"
+echo "ALSA_LIBS: $ALSA_LIBS"
+echo "JACK plugin:        $HAVE_JACK"
+if test "$HAVE_JACK" = "yes"; then
+  echo "  JACK_CFLAGS: $JACK_CFLAGS"
+  echo "  JACK_LIBS: $JACK_LIBS"
+fi
+echo "Pulseaudio plugin:  $HAVE_PULSE"
+if test "$HAVE_PULSE" = "yes"; then
+  echo "  pulseaudio_CFLAGS: $pulseaudio_CFLAGS"
+  echo "  pulseaudio_LIBS: $pulseaudio_LIBS"
+fi
+echo "Samplerate plugin:  $HAVE_SAMPLERATE"
+if test "$HAVE_SAMPLERATE" = "yes"; then
+  echo "  samplerate_CFLAGS: $samplerate_CFLAGS"
+  echo "  samplerate_LIBS: $samplerate_LIBS"
+fi
+echo "Maemo plugin:       $HAVE_DBUS"
+if test "$HAVE_DBUS" = "yes"; then
+  echo "  DBUS_CFLAGS: $DBUS_CFLAGS"
+  echo "  DBUS_LIBS: $DBUS_LIBS"
+fi
+echo "A52, lavc plugins:  $HAVE_AVCODEC"
+if test "$HAVE_AVCODEC" = "yes"; then
+  echo "  AVCODEC_CFLAGS: $AVCODEC_CFLAGS"
+  echo "  AVCODEC_LIBS: $AVCODEC_LIBS"
+fi
+echo "Speex rate plugin:  $PPH"
+if test "$PPH" = "lib"; then
+  echo "  speex_CFLAGS: $speex_CFLAGS"
+  echo "  speex_LIBS: $speex_LIBS"
+fi

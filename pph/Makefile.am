@@ -5,8 +5,14 @@ asound_module_rate_speexratedir = @ALSA_PLUGIN_DIR@
 AM_CFLAGS = -DVAR_ARRAYS -DRANDOM_PREFIX=alsa_lib -DOUTSIDE_SPEEX -Wall -g @ALSA_CFLAGS@
 AM_LDFLAGS = -module -avoid-version -export-dynamic
 
-libasound_module_rate_speexrate_la_SOURCES = rate_speexrate.c resample.c
+libasound_module_rate_speexrate_la_SOURCES = rate_speexrate.c
 libasound_module_rate_speexrate_la_LIBADD = @ALSA_LIBS@
+if USE_LIBSPEEX
+AM_CFLAGS += @speex_CFLAGS@
+libasound_module_rate_speexrate_la_LIBADD += @speex_LIBS@
+else
+libasound_module_rate_speexrate_la_SOURCES += resample.c
+endif
 
 install-exec-hook:
 	rm -f $(DESTDIR)@ALSA_PLUGIN_DIR@/libasound_module_rate_speexrate_*.so
