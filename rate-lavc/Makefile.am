@@ -3,7 +3,7 @@ asound_module_rate_lavcrate_LTLIBRARIES = libasound_module_rate_lavcrate.la
 asound_module_rate_lavcratedir = @ALSA_PLUGIN_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@ @AVCODEC_CFLAGS@
-AM_LDFLAGS = -module -avoid-version -export-dynamic
+AM_LDFLAGS = -module -avoid-version -export-dynamic -no-undefined
 
 libasound_module_rate_lavcrate_la_SOURCES = rate_lavcrate.c
 libasound_module_rate_lavcrate_la_LIBADD = @ALSA_LIBS@ @AVCODEC_LIBS@

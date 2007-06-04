@@ -5,7 +5,7 @@ asound_module_pcm_ossdir = @ALSA_PLUGIN_DIR@
 asound_module_ctl_ossdir = @ALSA_PLUGIN_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@
-AM_LDFLAGS = -module -avoid-version -export-dynamic
+AM_LDFLAGS = -module -avoid-version -export-dynamic -no-undefined
 
 libasound_module_pcm_oss_la_SOURCES = pcm_oss.c
 libasound_module_pcm_oss_la_LIBADD = @ALSA_LIBS@

@@ -3,7 +3,7 @@ asound_module_rate_speexrate_LTLIBRARIES = libasound_module_rate_speexrate.la
 asound_module_rate_speexratedir = @ALSA_PLUGIN_DIR@
 
 AM_CFLAGS = -DVAR_ARRAYS -DRANDOM_PREFIX=alsa_lib -DOUTSIDE_SPEEX -Wall -g @ALSA_CFLAGS@
-AM_LDFLAGS = -module -avoid-version -export-dynamic
+AM_LDFLAGS = -module -avoid-version -export-dynamic -no-undefined
 
 libasound_module_rate_speexrate_la_SOURCES = rate_speexrate.c
 libasound_module_rate_speexrate_la_LIBADD = @ALSA_LIBS@

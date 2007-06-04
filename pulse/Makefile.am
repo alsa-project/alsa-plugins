@@ -5,7 +5,7 @@ asound_module_pcmdir = @ALSA_PLUGIN_DIR@
 asound_module_ctldir = @ALSA_PLUGIN_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@ $(PTHREAD_CFLAGS) $(pulseaudio_CFLAGS) -D_GNU_SOURCE
-AM_LDFLAGS = -module -avoid-version -export-dynamic
+AM_LDFLAGS = -module -avoid-version -export-dynamic -no-undefined
 
 libasound_module_pcm_pulse_la_SOURCES = pcm_pulse.c pulse.c pulse.h
 libasound_module_pcm_pulse_la_LIBADD = @ALSA_LIBS@ $(PTHREAD_LIBS) $(pulseaudio_LIBS)
