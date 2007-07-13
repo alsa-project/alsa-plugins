@@ -116,6 +116,7 @@ static void pcm_src_convert_s16(void *obj, int16_t *dst, unsigned int dst_frames
 				const int16_t *src, unsigned int src_frames)
 {
 	struct rate_src *rate = obj;
+	unsigned int ofs;
 
 	rate->data.input_frames = src_frames;
 	rate->data.output_frames = dst_frames;
@@ -123,7 +124,12 @@ static void pcm_src_convert_s16(void *obj, int16_t *dst, unsigned int dst_frames
 	
 	src_short_to_float_array(src, rate->src_buf, src_frames * rate->channels);
 	src_process(rate->state, &rate->data);
-	src_float_to_short_array(rate->dst_buf, dst, dst_frames * rate->channels);
+	if (rate->data.output_frames_gen < dst_frames)
+		ofs = dst_frames - rate->data.output_frames_gen;
+	else
+		ofs = 0;
+	src_float_to_short_array(rate->dst_buf, dst + ofs * rate->channels,
+				 rate->data.output_frames_gen * rate->channels);
 }
 
 static void pcm_src_close(void *obj)
