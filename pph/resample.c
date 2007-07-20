@@ -551,7 +551,10 @@ static void update_filter(SpeexResamplerState *st)
    }
 
    /* Choose the resampling type that requires the least amount of memory */
-   if (st->den_rate <= st->oversample)
+   /* FIXME: The direct sinc table can be noisy in some conditions.
+    *        Disable it as a temporary workaround.
+    */
+   if (0 /*st->den_rate <= st->oversample*/)
    {
       spx_uint32_t i;
       if (!st->sinc_table)
