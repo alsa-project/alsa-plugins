@@ -77,12 +77,13 @@ static void pcm_src_free(void *obj)
 static int pcm_src_init(void *obj, snd_pcm_rate_info_t *info)
 {
    struct rate_src *rate = obj;
+   int err;
    
    if (! rate->st || rate->channels != info->channels) {
       if (rate->st)
          speex_resampler_destroy(rate->st);
       rate->channels = info->channels;
-      rate->st = speex_resampler_init_frac(rate->channels, info->in.period_size, info->out.period_size, info->in.rate, info->out.rate, rate->quality);
+      rate->st = speex_resampler_init_frac(rate->channels, info->in.period_size, info->out.period_size, info->in.rate, info->out.rate, rate->quality, &err);
       if (! rate->st)
          return -EINVAL;
    }
