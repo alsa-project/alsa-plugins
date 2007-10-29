@@ -490,14 +490,17 @@ finish:
 static int pulse_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 {
     snd_pcm_pulse_t *pcm = io->private_data;
+    snd_pcm_t *base = io->pcm;
 	int err = 0;
 
     assert(pcm);
     assert(pcm->p);
 
+    //Resolving bugtrack ID 0003470
+    if(!(base && snd_pcm_state(base) == SND_PCM_STATE_PREPARED))
+    	assert(!pcm->stream);
+    
     pa_threaded_mainloop_lock(pcm->p->mainloop);
-
-    assert(!pcm->stream);
 
     pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
 
