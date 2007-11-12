@@ -497,8 +497,16 @@ static int pulse_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
     assert(pcm->p);
 
     //Resolving bugtrack ID 0003470
-    if(!(base && snd_pcm_state(base) == SND_PCM_STATE_PREPARED))
-    	assert(!pcm->stream);
+    if (!base) {
+	switch (snd_pcm_state(base)) {
+	case SND_PCM_STATE_SETUP:
+	case SND_PCM_STATE_PREPARED:
+	    break;
+	default:
+    	    assert(!pcm->stream);
+	    break;
+	}
+    }
     
     pa_threaded_mainloop_lock(pcm->p->mainloop);
 
