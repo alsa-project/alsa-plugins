@@ -659,6 +659,13 @@ static int pulse_hw_constraint(snd_pcm_pulse_t *pcm)
     if (err < 0)
         return err;
 
+	err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIOD_BYTES, 256, 1024 * 1024);
+	if (err < 0)
+		return err;
+
+	err = snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIODS, 2, 1024);
+	if (err < 0)
+		return err;
     return 0;
 }
 
