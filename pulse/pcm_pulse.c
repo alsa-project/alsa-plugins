@@ -57,7 +57,7 @@ static void update_ptr(snd_pcm_pulse_t *pcm)
 
     if (size > pcm->last_size) {
         pcm->ptr += size - pcm->last_size;
-        pcm->ptr %= pcm->buffer_attr.maxlength;
+        pcm->ptr %= pcm->buffer_attr.tlength;
     }
 
     pcm->last_size = size;
@@ -544,9 +544,9 @@ static int pulse_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
     pcm->ss.rate = io->rate;
     pcm->ss.channels = io->channels;
 
-    pcm->buffer_attr.maxlength = io->buffer_size * pcm->frame_size;
+    pcm->buffer_attr.maxlength = (io->buffer_size*3)/2 * pcm->frame_size;
     pcm->buffer_attr.tlength = io->buffer_size * pcm->frame_size;
-    pcm->buffer_attr.prebuf = io->period_size * pcm->frame_size;
+    pcm->buffer_attr.prebuf = (io->buffer_size - io->period_size) * pcm->frame_size;
     pcm->buffer_attr.minreq = io->period_size * pcm->frame_size;
     pcm->buffer_attr.fragsize = io->period_size * pcm->frame_size;
 
