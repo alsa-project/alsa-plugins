@@ -36,6 +36,7 @@ typedef struct snd_pcm_pulse {
     /* Since ALSA expects a ring buffer we must do some voodoo. */
     size_t last_size;
     size_t ptr;
+    int underrun;
 
     size_t offset;
 
@@ -90,7 +91,9 @@ static int pulse_start(snd_pcm_ioplug_t *io)
     if (err < 0) {
         err = -EIO;
         goto finish;
-    }
+    } else
+    	pcm->underrun = 0;
+
 
 finish:
     pa_threaded_mainloop_unlock(pcm->p->mainloop);
@@ -200,6 +203,9 @@ static snd_pcm_sframes_t pulse_pointer(snd_pcm_ioplug_t *io)
 
 	err = snd_pcm_bytes_to_frames(io->pcm, pcm->ptr);
 
+	if (pcm->underrun)
+		err = -EPIPE;
+
 finish:
     pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
@@ -230,6 +236,9 @@ static int pulse_delay(snd_pcm_ioplug_t *io,
 	}
 
 	*delayp = snd_pcm_bytes_to_frames(io->pcm, pa_usec_to_bytes(lat, &pcm->ss));
+
+ 	if (pcm->underrun && pcm->io.state == SND_PCM_STATE_RUNNING)
+		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_XRUN);
 
 finish:
     pa_threaded_mainloop_unlock(pcm->p->mainloop);
@@ -273,6 +282,7 @@ static snd_pcm_sframes_t pulse_write(snd_pcm_ioplug_t *io,
         pulse_poll_deactivate(pcm->p);
 
     err = size;
+    pcm->underrun = 0;
 
 finish:
     pa_threaded_mainloop_unlock(pcm->p->mainloop);
@@ -352,6 +362,15 @@ static void stream_request_cb(pa_stream *p, size_t length, void *userdata)
     assert(pcm->p);
 
     pulse_poll_activate(pcm->p);
+}
+
+static void stream_underrun_cb(pa_stream *p, void *userdata) {
+	snd_pcm_pulse_t *pcm = userdata;
+
+	assert(pcm);
+	assert(pcm->p);
+
+	pcm->underrun = 1;
 }
 
 static int pulse_pcm_poll_descriptors_count(snd_pcm_ioplug_t *io)
@@ -461,6 +480,7 @@ static int pulse_prepare(snd_pcm_ioplug_t *io)
 
     if (io->stream == SND_PCM_STREAM_PLAYBACK) {
         pa_stream_set_write_callback(pcm->stream, stream_request_cb, pcm);
+	pa_stream_set_underflow_callback(pcm->stream, stream_underrun_cb, pcm);
         pa_stream_connect_playback(pcm->stream, pcm->device, &pcm->buffer_attr,
         	PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING, NULL, NULL);
     } else {
@@ -480,6 +500,7 @@ static int pulse_prepare(snd_pcm_ioplug_t *io)
     pcm->last_size = 0;
     pcm->ptr = 0;
     pcm->offset = 0;
+    pcm->underrun = 0;
 
 finish:
     pa_threaded_mainloop_unlock(pcm->p->mainloop);
