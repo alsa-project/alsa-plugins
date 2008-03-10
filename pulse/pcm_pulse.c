@@ -73,9 +73,10 @@ static int pulse_start(snd_pcm_ioplug_t *io)
     assert(pcm);
     assert(pcm->p);
 
-    pa_threaded_mainloop_lock(pcm->p->mainloop);
+    if (pcm->stream == NULL)
+	return 0;
 
-    assert(pcm->stream);
+    pa_threaded_mainloop_lock(pcm->p->mainloop);
 
     err = pulse_check_connection(pcm->p);
     if (err < 0)
