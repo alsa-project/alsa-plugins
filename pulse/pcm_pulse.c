@@ -112,10 +112,12 @@ static int pulse_stop(snd_pcm_ioplug_t *io)
 
     pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-    assert(pcm->stream);
-
     err = pulse_check_connection(pcm->p);
     if (err < 0)
+        goto finish;
+
+    /* If stream connection fails, this gets called anyway */
+    if (pcm->stream == NULL)
         goto finish;
 
     o = pa_stream_flush(pcm->stream, pulse_stream_success_cb, pcm->p);
