@@ -614,7 +614,7 @@ int dsp_protocol_destroy(dsp_protocol_t ** dsp_protocol)
 	DENTER();
 #ifdef USE_RESOURCE_MANAGER
         if ((*dsp_protocol)->dbus_connection)
-                dbus_connection_close((*dsp_protocol)->dbus_connection);
+                dbus_connection_unref((*dsp_protocol)->dbus_connection);
 #endif /* USE_RESOURCE_MANAGER */
 	if (*dsp_protocol) {
 		if ((*dsp_protocol)->device)
