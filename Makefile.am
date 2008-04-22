@@ -11,7 +11,7 @@ if HAVE_AVCODEC
 A52DIR = a52
 LAVCRATEDIR = rate-lavc
 endif
-if HAVE_DBUS
+if HAVE_MAEMO_PLUGIN
 MAEMODIR = maemo
 endif
 if HAVE_PPH
