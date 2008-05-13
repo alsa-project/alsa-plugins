@@ -26,14 +26,19 @@
 #include <pulse/pulseaudio.h>
 
 
+/* Not actually part of the alsa api....  */
+extern int
+snd_config_hook_load (snd_config_t *root, snd_config_t *config,
+  snd_config_t **dst, snd_config_t *private_data);
+
 int
-conf_pulse_hook_on_is_running (snd_config_t *root, snd_config_t *config,
+conf_pulse_hook_load_if_running (snd_config_t *root, snd_config_t *config,
     snd_config_t **dst, snd_config_t *private_data) {
-  snd_config_t *n = NULL;
   pa_mainloop *loop = NULL;
   pa_context *context = NULL;
   int ret = 0, err, state;
 
+  *dst = NULL;
 
   /* Defined if we're called inside the pulsedaemon itself */
   if (getenv("PULSE_INTERNAL") != NULL)
@@ -65,12 +70,12 @@ conf_pulse_hook_on_is_running (snd_config_t *root, snd_config_t *config,
       goto out;
 
     state = pa_context_get_state(context);
-  } while (state < PA_CONTEXT_READY);
+  } while (state < PA_CONTEXT_AUTHORIZING);
 
-  if (state != PA_CONTEXT_READY)
+  if (state > PA_CONTEXT_READY)
     goto out;
 
-  ret = snd_config_expand(config, root, NULL, private_data, &n);
+  ret = snd_config_hook_load(root, config, dst, private_data);
 
 out:
   if (context != NULL)
@@ -79,10 +84,8 @@ out:
   if (loop != NULL)
     pa_mainloop_free(loop);
 
-  *dst = n;
-
   return ret;
 }
 
-SND_DLSYM_BUILD_VERSION(conf_pulse_hook_on_is_running,
+SND_DLSYM_BUILD_VERSION(conf_pulse_hook_load_if_running,
   SND_CONFIG_DLSYM_VERSION_HOOK);
