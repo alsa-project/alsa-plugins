@@ -19,7 +19,7 @@ PPHDIR = pph
 endif
 
 SUBDIRS = oss mix $(PPHDIR) $(JACKDIR) $(PULSEDIR) $(SAMPLERATEDIR) $(A52DIR) $(LAVCRATEDIR) $(MAEMODIR) doc
-EXTRA_DIST = hgcompile version COPYING.GPL
+EXTRA_DIST = gitcompile version COPYING.GPL
 AUTOMAKE_OPTIONS = foreign
 
 dist-hook:
