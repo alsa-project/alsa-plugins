@@ -4,6 +4,7 @@ config.cache
 config.status
 config.guess
 config.sub
+config.h
 confdefs.h
 config.h.in
 Makefile
@@ -20,6 +21,7 @@ missing
 autom4te.cache
 depcomp
 compile
+stamp-h1
 .libs
 .deps
 *.la
