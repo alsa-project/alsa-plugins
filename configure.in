@@ -27,13 +27,13 @@ AM_CONDITIONAL(HAVE_SAMPLERATE, test x$HAVE_SAMPLERATE = xyes)
 AC_ARG_ENABLE([maemo-plugin],
 	AS_HELP_STRING([--enable-maemo-plugin],
 		[Build Maemo DSP plugin]),
-	[HAVE_MAEMO_PLUGIN="$withval"], [HAVE_MAEMO_PLUGIN="no"])
+	[HAVE_MAEMO_PLUGIN="$enableval"], [HAVE_MAEMO_PLUGIN="no"])
 AM_CONDITIONAL(HAVE_MAEMO_PLUGIN, test x$HAVE_MAEMO_PLUGIN = xyes)
 
 AC_ARG_ENABLE([maemo-resource-manager],
 	AS_HELP_STRING([--enable-maemo-resource-manager],
 		[Use Maemo resource manager]),
-	[use_maemo_rm="$withval"], [use_maemo_rm="no"])
+	[use_maemo_rm="$enableval"], [use_maemo_rm="no"])
 
 if test "$use_maemo_rm" = "yes"; then
         PKG_CHECK_MODULES(DBUS, [dbus-1], [HAVE_DBUS=yes], [HAVE_DBUS=no])
