@@ -83,7 +83,10 @@ static int pulse_start(snd_pcm_ioplug_t *io)
         goto finish;
 
     o = pa_stream_cork(pcm->stream, 0, pulse_stream_success_cb, pcm->p);
-    assert(o);
+    if (!o) {
+	err = -EIO;
+	goto finish;
+    }
 
     err = pulse_wait_operation(pcm->p, o);
 
@@ -122,7 +125,10 @@ static int pulse_stop(snd_pcm_ioplug_t *io)
         goto finish;
 
     o = pa_stream_flush(pcm->stream, pulse_stream_success_cb, pcm->p);
-    assert(o);
+    if (!o) {
+	err = -EIO;
+	goto finish;
+    }
 
     err = pulse_wait_operation(pcm->p, o);
 
@@ -134,7 +140,10 @@ static int pulse_stop(snd_pcm_ioplug_t *io)
     }
 
     o = pa_stream_cork(pcm->stream, 1, pulse_stream_success_cb, pcm->p);
-    assert(o);
+    if (!o) {
+	err = -EIO;
+	goto finish;
+    }
 
     err = pulse_wait_operation(pcm->p, o);
 
@@ -169,7 +178,10 @@ int pulse_drain(snd_pcm_ioplug_t *io)
         goto finish;
 
     o = pa_stream_drain(pcm->stream, pulse_stream_success_cb, pcm->p);
-    assert(o);
+    if (!o) {
+	err = -EIO;
+	goto finish;
+    }
 
     err = pulse_wait_operation(pcm->p, o);
 
