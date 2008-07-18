@@ -67,8 +67,8 @@ static void update_ptr(snd_pcm_pulse_t *pcm)
 static int pulse_start(snd_pcm_ioplug_t *io)
 {
 	snd_pcm_pulse_t *pcm = io->private_data;
-	pa_operation *o;
-	int err = 0;
+	pa_operation *o, *u;
+	int err = 0, err_o = 0, err_u = 0;
 
     assert(pcm);
     assert(pcm->p);
@@ -88,11 +88,20 @@ static int pulse_start(snd_pcm_ioplug_t *io)
 	goto finish;
     }
 
-    err = pulse_wait_operation(pcm->p, o);
+    u = pa_stream_trigger(pcm->stream, pulse_stream_success_cb, pcm->p);
+    if (!u) {
+        pa_operation_unref(o);
+	err = -EIO;
+	goto finish;
+    }
+
+    err_o = pulse_wait_operation(pcm->p, o);
+    err_u = pulse_wait_operation(pcm->p, u);
 
     pa_operation_unref(o);
+    pa_operation_unref(u);
 
-    if (err < 0) {
+    if (err_o < 0 || err_u < 0) {
         err = -EIO;
         goto finish;
     } else
@@ -543,7 +552,7 @@ static int pulse_hw_params(snd_pcm_ioplug_t *io, snd_pcm_hw_params_t *params)
 	    break;
 	}
     }
-    
+
     pa_threaded_mainloop_lock(pcm->p->mainloop);
 
     pcm->frame_size = (snd_pcm_format_physical_width(io->format) * io->channels) / 8;
@@ -761,7 +770,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 	pcm->io.callback = stream == SND_PCM_STREAM_PLAYBACK ?
 		&pulse_playback_callback : &pulse_capture_callback;
 	pcm->io.private_data = pcm;
- 
+
 	err = snd_pcm_ioplug_create(&pcm->io, name, stream, mode);
 	if (err < 0)
 		goto error;
