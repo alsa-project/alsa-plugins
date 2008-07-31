@@ -125,6 +125,7 @@ AC_OUTPUT([
 	rate-lavc/Makefile
 	maemo/Makefile
 	doc/Makefile
+	usb_stream/Makefile
 ])
 
 dnl Show the build conditions
