@@ -26,3 +26,6 @@ stamp-h1
 .deps
 *.la
 *.lo
+*.orig
+*.rej
+*~
