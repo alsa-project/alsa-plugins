@@ -7,3 +7,5 @@ AM_LDFLAGS = -module -avoid-version -export-dynamic
 
 libasound_module_pcm_usb_stream_la_SOURCES = pcm_usb_stream.c
 libasound_module_pcm_usb_stream_la_LIBADD = @ALSA_LIBS@
+
+noinst_HEADERS = usb_stream.h
