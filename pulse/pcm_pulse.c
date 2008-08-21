@@ -458,10 +458,6 @@ static int pulse_pcm_poll_revents(snd_pcm_ioplug_t * io,
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	err = pulse_poll_revents(pcm->p, pfd, nfds, revents);
-	if (err < 0)
-		goto finish;
-
 	*revents = 0;
 
 	/*
@@ -479,7 +475,6 @@ static int pulse_pcm_poll_revents(snd_pcm_ioplug_t * io,
 			*revents |= POLLIN;
 	}
 
-      finish:
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;

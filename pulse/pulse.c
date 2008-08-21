@@ -260,11 +260,3 @@ int pulse_poll_descriptors(snd_pulse_t * p, struct pollfd *pfd,
 
 	return 1;
 }
-
-int pulse_poll_revents(snd_pulse_t * p, struct pollfd *pfd,
-		       unsigned int nfds, unsigned short *revents)
-{
-	assert(p);
-
-	return 1;
-}

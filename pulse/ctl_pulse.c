@@ -554,16 +554,11 @@ static int pulse_ctl_poll_revents(snd_ctl_ext_t * ext, struct pollfd *pfd,
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
 
-	err = pulse_poll_revents(ctl->p, pfd, nfds, revents);
-	if (err < 0)
-		goto finish;
-
 	*revents = 0;
 
 	if (ctl->updated)
 		*revents |= POLLIN;
 
-      finish:
 	pa_threaded_mainloop_unlock(ctl->p->mainloop);
 
 	return err;

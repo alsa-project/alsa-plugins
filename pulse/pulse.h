@@ -36,6 +36,7 @@ typedef struct snd_pulse {
 		PULSE_STATE_INIT,
 		PULSE_STATE_READY,
 	} state;
+
 } snd_pulse_t;
 
 int pulse_check_connection(snd_pulse_t * p);
@@ -58,5 +59,3 @@ void pulse_poll_deactivate(snd_pulse_t * p);
 int pulse_poll_descriptors_count(snd_pulse_t * p);
 int pulse_poll_descriptors(snd_pulse_t * p, struct pollfd *pfd,
 			   unsigned int space);
-int pulse_poll_revents(snd_pulse_t * p, struct pollfd *pfd,
-		       unsigned int nfds, unsigned short *revents);
