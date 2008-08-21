@@ -484,7 +484,7 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 {
 	pa_channel_map map;
 	snd_pcm_pulse_t *pcm = io->private_data;
-	int err = 0;
+	int err = 0, r;
 
 	assert(pcm);
 	assert(pcm->p);
@@ -521,7 +521,11 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 								     ss.
 								     channels,
 								     PA_CHANNEL_MAP_ALSA));
-	assert(pcm->stream);
+
+	if (!pcm->stream) {
+		err = -ENOMEM;
+		goto finish;
+	}
 
 	pa_stream_set_state_callback(pcm->stream, pulse_stream_state_cb,
 				     pcm->p);
@@ -531,18 +535,26 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 					     stream_request_cb, pcm);
 		pa_stream_set_underflow_callback(pcm->stream,
 						 stream_underrun_cb, pcm);
-		pa_stream_connect_playback(pcm->stream, pcm->device,
-					   &pcm->buffer_attr,
-					   PA_STREAM_AUTO_TIMING_UPDATE |
-					   PA_STREAM_INTERPOLATE_TIMING,
-					   NULL, NULL);
+		r = pa_stream_connect_playback(pcm->stream, pcm->device,
+					       &pcm->buffer_attr,
+					       PA_STREAM_AUTO_TIMING_UPDATE |
+					       PA_STREAM_INTERPOLATE_TIMING,
+					       NULL, NULL);
 	} else {
 		pa_stream_set_read_callback(pcm->stream, stream_request_cb,
 					    pcm);
-		pa_stream_connect_record(pcm->stream, pcm->device,
-					 &pcm->buffer_attr,
-					 PA_STREAM_AUTO_TIMING_UPDATE |
-					 PA_STREAM_INTERPOLATE_TIMING);
+		r = pa_stream_connect_record(pcm->stream, pcm->device,
+					     &pcm->buffer_attr,
+					     PA_STREAM_AUTO_TIMING_UPDATE |
+					     PA_STREAM_INTERPOLATE_TIMING);
+	}
+
+	if (r < 0) {
+		SNDERR("PulseAudio: Unable to create stream: %s\n", pa_strerror(pa_context_errno(pcm->p->context)));
+		pa_stream_unref(pcm->stream);
+		pcm->stream = NULL;
+		r = -EIO;
+		goto finish;
 	}
 
 	err =
@@ -804,9 +816,17 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 	}
 
 	pcm = calloc(1, sizeof(*pcm));
+	if (!pcm)
+		return -ENOMEM;
 
-	if (device)
+	if (device) {
 		pcm->device = strdup(device);
+
+		if (!pcm->device) {
+			err = -ENOMEM;
+			goto error;
+		}
+	}
 
 	pcm->p = pulse_new();
 	if (!pcm->p) {
