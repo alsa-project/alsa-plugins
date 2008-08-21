@@ -553,8 +553,7 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 	err =
 	    pulse_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_READY);
 	if (err < 0) {
-		fprintf(stderr,
-			"*** PULSEAUDIO: Unable to create stream.\n");
+		SNDERR("PulseAudio: Unable to create stream: %s\n", pa_strerror(pa_context_errno(pcm->p->context)));
 		pa_stream_unref(pcm->stream);
 		pcm->stream = NULL;
 		goto finish;
@@ -621,7 +620,7 @@ static int pulse_hw_params(snd_pcm_ioplug_t * io,
 		pcm->ss.format = PA_SAMPLE_FLOAT32BE;
 		break;
 	default:
-		fprintf(stderr, "*** PULSEAUDIO: unsupported format %s\n",
+		SNDERR("PulseAudio: Unsupported format %s\n",
 			snd_pcm_format_name(io->format));
 		err = -EINVAL;
 		goto finish;

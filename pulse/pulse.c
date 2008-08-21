@@ -211,7 +211,7 @@ int pulse_connect(snd_pulse_t * p, const char *server)
 	return 0;
 
       error:
-	fprintf(stderr, "*** PULSEAUDIO: Unable to connect: %s\n",
+	SNDERR("PulseAudio: Unable to connect: %s\n",
 		pa_strerror(pa_context_errno(p->context)));
 
 	pa_threaded_mainloop_unlock(p->mainloop);
