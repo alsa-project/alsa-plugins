@@ -1,3 +1,5 @@
+/*-*- linux-c -*-*/
+
 /*
  * ALSA <-> PulseAudio plugins
  *

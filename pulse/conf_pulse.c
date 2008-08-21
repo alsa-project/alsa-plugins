@@ -1,3 +1,5 @@
+/*-*- linux-c -*-*/
+
 /*
  * ALSA configuration function extensions for pulse
  *

@@ -1,3 +1,5 @@
+/*-*- linux-c -*-*/
+
 /*
  * ALSA <-> PulseAudio mixer control plugin
  *
