@@ -25,33 +25,36 @@
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 
 typedef struct snd_pulse {
-    pa_threaded_mainloop *mainloop;
-    pa_context *context;
+	pa_threaded_mainloop *mainloop;
+	pa_context *context;
 
-    int thread_fd, main_fd;
+	int thread_fd, main_fd;
 
-    enum {
-        PULSE_STATE_INIT,
-        PULSE_STATE_READY,
-    } state;
+	enum {
+		PULSE_STATE_INIT,
+		PULSE_STATE_READY,
+	} state;
 } snd_pulse_t;
 
-int pulse_check_connection(snd_pulse_t *p);
+int pulse_check_connection(snd_pulse_t * p);
 
-void pulse_stream_state_cb(pa_stream *s, void * userdata);
-void pulse_stream_success_cb(pa_stream *s, int success, void *userdata);
-void pulse_context_success_cb(pa_context *c, int success, void *userdata);
+void pulse_stream_state_cb(pa_stream * s, void *userdata);
+void pulse_stream_success_cb(pa_stream * s, int success, void *userdata);
+void pulse_context_success_cb(pa_context * c, int success, void *userdata);
 
-int pulse_wait_operation(snd_pulse_t *p, pa_operation *o);
-int pulse_wait_stream_state(snd_pulse_t *p, pa_stream *stream, pa_stream_state_t target);
+int pulse_wait_operation(snd_pulse_t * p, pa_operation * o);
+int pulse_wait_stream_state(snd_pulse_t * p, pa_stream * stream,
+			    pa_stream_state_t target);
 
 snd_pulse_t *pulse_new();
-void pulse_free(snd_pulse_t *p);
+void pulse_free(snd_pulse_t * p);
 
-int pulse_connect(snd_pulse_t *p, const char *server);
+int pulse_connect(snd_pulse_t * p, const char *server);
 
-void pulse_poll_activate(snd_pulse_t *p);
-void pulse_poll_deactivate(snd_pulse_t *p);
-int pulse_poll_descriptors_count(snd_pulse_t *p);
-int pulse_poll_descriptors(snd_pulse_t *p, struct pollfd *pfd, unsigned int space);
-int pulse_poll_revents(snd_pulse_t *p, struct pollfd *pfd, unsigned int nfds, unsigned short *revents);
+void pulse_poll_activate(snd_pulse_t * p);
+void pulse_poll_deactivate(snd_pulse_t * p);
+int pulse_poll_descriptors_count(snd_pulse_t * p);
+int pulse_poll_descriptors(snd_pulse_t * p, struct pollfd *pfd,
+			   unsigned int space);
+int pulse_poll_revents(snd_pulse_t * p, struct pollfd *pfd,
+		       unsigned int nfds, unsigned short *revents);

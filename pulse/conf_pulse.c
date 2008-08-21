@@ -28,64 +28,66 @@
 
 /* Not actually part of the alsa api....  */
 extern int
-snd_config_hook_load (snd_config_t *root, snd_config_t *config,
-  snd_config_t **dst, snd_config_t *private_data);
+snd_config_hook_load(snd_config_t * root, snd_config_t * config,
+		     snd_config_t ** dst, snd_config_t * private_data);
 
 int
-conf_pulse_hook_load_if_running (snd_config_t *root, snd_config_t *config,
-    snd_config_t **dst, snd_config_t *private_data) {
-  pa_mainloop *loop = NULL;
-  pa_context *context = NULL;
-  int ret = 0, err, state;
+conf_pulse_hook_load_if_running(snd_config_t * root, snd_config_t * config,
+				snd_config_t ** dst,
+				snd_config_t * private_data)
+{
+	pa_mainloop *loop = NULL;
+	pa_context *context = NULL;
+	int ret = 0, err, state;
 
-  *dst = NULL;
+	*dst = NULL;
 
-  /* Defined if we're called inside the pulsedaemon itself */
-  if (getenv("PULSE_INTERNAL") != NULL)
-    goto out;
+	/* Defined if we're called inside the pulsedaemon itself */
+	if (getenv("PULSE_INTERNAL") != NULL)
+		goto out;
 
-  loop = pa_mainloop_new();
-  if (loop == NULL)
-    goto out;
+	loop = pa_mainloop_new();
+	if (loop == NULL)
+		goto out;
 
-  context = pa_context_new(pa_mainloop_get_api(loop), "Alsa hook");
-  if (context == NULL)
-    goto out;
+	context = pa_context_new(pa_mainloop_get_api(loop), "Alsa hook");
+	if (context == NULL)
+		goto out;
 
-  err = pa_context_connect (context, NULL, 0, NULL);
-  if (err < 0)
-    goto out;
+	err = pa_context_connect(context, NULL, 0, NULL);
+	if (err < 0)
+		goto out;
 
-  do {
-    err = pa_mainloop_prepare (loop, -1);
-    if (err < 0)
-       goto out;
+	do {
+		err = pa_mainloop_prepare(loop, -1);
+		if (err < 0)
+			goto out;
 
-    err = pa_mainloop_poll (loop);
-    if (err < 0)
-      goto out;
+		err = pa_mainloop_poll(loop);
+		if (err < 0)
+			goto out;
 
-    err = pa_mainloop_dispatch (loop);
-    if (err < 0)
-      goto out;
+		err = pa_mainloop_dispatch(loop);
+		if (err < 0)
+			goto out;
 
-    state = pa_context_get_state(context);
-  } while (state < PA_CONTEXT_AUTHORIZING);
+		state = pa_context_get_state(context);
+	} while (state < PA_CONTEXT_AUTHORIZING);
 
-  if (state > PA_CONTEXT_READY)
-    goto out;
+	if (state > PA_CONTEXT_READY)
+		goto out;
 
-  ret = snd_config_hook_load(root, config, dst, private_data);
+	ret = snd_config_hook_load(root, config, dst, private_data);
 
-out:
-  if (context != NULL)
-    pa_context_unref(context);
+      out:
+	if (context != NULL)
+		pa_context_unref(context);
 
-  if (loop != NULL)
-    pa_mainloop_free(loop);
+	if (loop != NULL)
+		pa_mainloop_free(loop);
 
-  return ret;
+	return ret;
 }
 
 SND_DLSYM_BUILD_VERSION(conf_pulse_hook_load_if_running,
-  SND_CONFIG_DLSYM_VERSION_HOOK);
+			SND_CONFIG_DLSYM_VERSION_HOOK);

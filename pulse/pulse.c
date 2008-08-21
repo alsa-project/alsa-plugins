@@ -25,236 +25,244 @@
 
 #include "pulse.h"
 
-int pulse_check_connection(snd_pulse_t *p)
+int pulse_check_connection(snd_pulse_t * p)
 {
-    pa_context_state_t state;
+	pa_context_state_t state;
 
-    assert(p && p->context && p->mainloop);
+	assert(p && p->context && p->mainloop);
 
-    state = pa_context_get_state(p->context);
+	state = pa_context_get_state(p->context);
 
-    if (state != PA_CONTEXT_READY)
-        return -EIO;
+	if (state != PA_CONTEXT_READY)
+		return -EIO;
 
-    return 0;
+	return 0;
 }
 
-void pulse_stream_state_cb(pa_stream *s, void * userdata)
+void pulse_stream_state_cb(pa_stream * s, void *userdata)
 {
-    snd_pulse_t *p = userdata;
+	snd_pulse_t *p = userdata;
 
-    assert(s);
-    assert(p);
+	assert(s);
+	assert(p);
 
-    pa_threaded_mainloop_signal(p->mainloop, 0);
+	pa_threaded_mainloop_signal(p->mainloop, 0);
 }
 
-void pulse_stream_success_cb(pa_stream *s, int success, void *userdata)
+void pulse_stream_success_cb(pa_stream * s, int success, void *userdata)
 {
-    snd_pulse_t *p = userdata;
+	snd_pulse_t *p = userdata;
 
-    assert(s);
-    assert(p);
+	assert(s);
+	assert(p);
 
-    pa_threaded_mainloop_signal(p->mainloop, 0);
+	pa_threaded_mainloop_signal(p->mainloop, 0);
 }
 
-void pulse_context_success_cb(pa_context *c, int success, void *userdata)
+void pulse_context_success_cb(pa_context * c, int success, void *userdata)
 {
-    snd_pulse_t *p = userdata;
+	snd_pulse_t *p = userdata;
 
-    assert(c);
-    assert(p);
+	assert(c);
+	assert(p);
 
-    pa_threaded_mainloop_signal(p->mainloop, 0);
+	pa_threaded_mainloop_signal(p->mainloop, 0);
 }
 
-int pulse_wait_operation(snd_pulse_t *p, pa_operation *o)
+int pulse_wait_operation(snd_pulse_t * p, pa_operation * o)
 {
-    assert(p && o && (p->state == PULSE_STATE_READY) && p->mainloop);
+	assert(p && o && (p->state == PULSE_STATE_READY) && p->mainloop);
 
-    while (pa_operation_get_state(o) == PA_OPERATION_RUNNING)
-        pa_threaded_mainloop_wait(p->mainloop);
+	while (pa_operation_get_state(o) == PA_OPERATION_RUNNING)
+		pa_threaded_mainloop_wait(p->mainloop);
 
-    return 0;
+	return 0;
 }
 
-int pulse_wait_stream_state(snd_pulse_t *p, pa_stream *stream, pa_stream_state_t target)
+int pulse_wait_stream_state(snd_pulse_t * p, pa_stream * stream,
+			    pa_stream_state_t target)
 {
-    pa_stream_state_t state;
+	pa_stream_state_t state;
 
-    assert(p && stream && (p->state == PULSE_STATE_READY) && p->mainloop);
+	assert(p && stream && (p->state == PULSE_STATE_READY)
+	       && p->mainloop);
 
-    while (1) {
-        state = pa_stream_get_state(stream);
+	while (1) {
+		state = pa_stream_get_state(stream);
 
-        if (state == PA_STREAM_FAILED)
-            return -EIO;
+		if (state == PA_STREAM_FAILED)
+			return -EIO;
 
-        if (state == target)
-            break;
+		if (state == target)
+			break;
 
-        pa_threaded_mainloop_wait(p->mainloop);
-    }
+		pa_threaded_mainloop_wait(p->mainloop);
+	}
 
-    return 0;
+	return 0;
 }
 
-static void context_state_cb(pa_context *c, void *userdata) {
-    snd_pulse_t *p = userdata;
-    assert(c);
+static void context_state_cb(pa_context * c, void *userdata)
+{
+	snd_pulse_t *p = userdata;
+	assert(c);
 
-    switch (pa_context_get_state(c)) {
-        case PA_CONTEXT_READY:
-        case PA_CONTEXT_TERMINATED:
-        case PA_CONTEXT_FAILED:
-            pa_threaded_mainloop_signal(p->mainloop, 0);
-            break;
+	switch (pa_context_get_state(c)) {
+	case PA_CONTEXT_READY:
+	case PA_CONTEXT_TERMINATED:
+	case PA_CONTEXT_FAILED:
+		pa_threaded_mainloop_signal(p->mainloop, 0);
+		break;
 
-        case PA_CONTEXT_UNCONNECTED:
-        case PA_CONTEXT_CONNECTING:
-        case PA_CONTEXT_AUTHORIZING:
-        case PA_CONTEXT_SETTING_NAME:
-            break;
-    }
+	case PA_CONTEXT_UNCONNECTED:
+	case PA_CONTEXT_CONNECTING:
+	case PA_CONTEXT_AUTHORIZING:
+	case PA_CONTEXT_SETTING_NAME:
+		break;
+	}
 }
 
 snd_pulse_t *pulse_new()
 {
-    snd_pulse_t *p;
+	snd_pulse_t *p;
 	int fd[2] = { -1, -1 };
 	char proc[PATH_MAX], buf[PATH_MAX + 20];
 
-    p = calloc(1, sizeof(snd_pulse_t));
-    assert(p);
+	p = calloc(1, sizeof(snd_pulse_t));
+	assert(p);
 
-    p->state = PULSE_STATE_INIT;
+	p->state = PULSE_STATE_INIT;
 
-    if (pipe(fd)) {
-        free(p);
-        return NULL;
-    }
+	if (pipe(fd)) {
+		free(p);
+		return NULL;
+	}
 
-    p->main_fd = fd[0];
-    p->thread_fd = fd[1];
+	p->main_fd = fd[0];
+	p->thread_fd = fd[1];
 
-    fcntl(fd[0], F_SETFL, O_NONBLOCK);
-    fcntl(fd[1], F_SETFL, O_NONBLOCK);
+	fcntl(fd[0], F_SETFL, O_NONBLOCK);
+	fcntl(fd[1], F_SETFL, O_NONBLOCK);
 
-    signal(SIGPIPE, SIG_IGN); /* Yes, ugly as hell */
+	signal(SIGPIPE, SIG_IGN);	/* Yes, ugly as hell */
 
-    p->mainloop = pa_threaded_mainloop_new();
-    assert(p->mainloop);
+	p->mainloop = pa_threaded_mainloop_new();
+	assert(p->mainloop);
 
-    if (pa_threaded_mainloop_start(p->mainloop) < 0) {
-        pa_threaded_mainloop_free(p->mainloop);
-        close(fd[0]);
-        close(fd[1]);
-        free(p);
-        return NULL;
-    }
+	if (pa_threaded_mainloop_start(p->mainloop) < 0) {
+		pa_threaded_mainloop_free(p->mainloop);
+		close(fd[0]);
+		close(fd[1]);
+		free(p);
+		return NULL;
+	}
 
-    if (pa_get_binary_name(proc, sizeof(proc)))
-        snprintf(buf, sizeof(buf), "ALSA plug-in [%s]", pa_path_get_filename(proc));
-    else
-        snprintf(buf, sizeof(buf), "ALSA plug-in");
+	if (pa_get_binary_name(proc, sizeof(proc)))
+		snprintf(buf, sizeof(buf), "ALSA plug-in [%s]",
+			 pa_path_get_filename(proc));
+	else
+		snprintf(buf, sizeof(buf), "ALSA plug-in");
 
-    p->context = pa_context_new(pa_threaded_mainloop_get_api(p->mainloop), buf);
-    assert(p->context);
+	p->context =
+	    pa_context_new(pa_threaded_mainloop_get_api(p->mainloop), buf);
+	assert(p->context);
 
-    return p;
+	return p;
 }
 
-void pulse_free(snd_pulse_t *p)
+void pulse_free(snd_pulse_t * p)
 {
-    pa_threaded_mainloop_stop(p->mainloop);
+	pa_threaded_mainloop_stop(p->mainloop);
 
-    pa_context_unref(p->context);
-    pa_threaded_mainloop_free(p->mainloop);
+	pa_context_unref(p->context);
+	pa_threaded_mainloop_free(p->mainloop);
 
-    close(p->thread_fd);
-    close(p->main_fd);
+	close(p->thread_fd);
+	close(p->main_fd);
 
-    free(p);
+	free(p);
 }
 
-int pulse_connect(snd_pulse_t *p, const char *server)
+int pulse_connect(snd_pulse_t * p, const char *server)
 {
-    int err;
+	int err;
 
-    assert(p && p->context && p->mainloop && (p->state == PULSE_STATE_INIT));
+	assert(p && p->context && p->mainloop
+	       && (p->state == PULSE_STATE_INIT));
 
-    pa_threaded_mainloop_lock(p->mainloop);
+	pa_threaded_mainloop_lock(p->mainloop);
 
-    err = pa_context_connect(p->context, server, 0, NULL);
-    if (err < 0)
-        goto error;
+	err = pa_context_connect(p->context, server, 0, NULL);
+	if (err < 0)
+		goto error;
 
-    pa_context_set_state_callback(p->context, context_state_cb, p);
+	pa_context_set_state_callback(p->context, context_state_cb, p);
 
-    pa_threaded_mainloop_wait(p->mainloop);
+	pa_threaded_mainloop_wait(p->mainloop);
 
-    if (pa_context_get_state(p->context) != PA_CONTEXT_READY)
-        goto error;
+	if (pa_context_get_state(p->context) != PA_CONTEXT_READY)
+		goto error;
 
-    pa_threaded_mainloop_unlock(p->mainloop);
+	pa_threaded_mainloop_unlock(p->mainloop);
 
-    p->state = PULSE_STATE_READY;
+	p->state = PULSE_STATE_READY;
 
-    return 0;
+	return 0;
 
-error:
-    fprintf(stderr, "*** PULSEAUDIO: Unable to connect: %s\n",
-        pa_strerror(pa_context_errno(p->context)));
+      error:
+	fprintf(stderr, "*** PULSEAUDIO: Unable to connect: %s\n",
+		pa_strerror(pa_context_errno(p->context)));
 
-    pa_threaded_mainloop_unlock(p->mainloop);
+	pa_threaded_mainloop_unlock(p->mainloop);
 
-    return -ECONNREFUSED;
+	return -ECONNREFUSED;
 }
 
-void pulse_poll_activate(snd_pulse_t *p)
+void pulse_poll_activate(snd_pulse_t * p)
 {
-    assert(p);
+	assert(p);
 
-    write(p->thread_fd, "a", 1);
+	write(p->thread_fd, "a", 1);
 }
 
-void pulse_poll_deactivate(snd_pulse_t *p)
+void pulse_poll_deactivate(snd_pulse_t * p)
 {
 	char buf[10];
 
 	assert(p);
 
-    /* Drain the pipe */
-    while (read(p->main_fd, buf, sizeof(buf)) > 0);
+	/* Drain the pipe */
+	while (read(p->main_fd, buf, sizeof(buf)) > 0);
 }
 
-int pulse_poll_descriptors_count(snd_pulse_t *p)
+int pulse_poll_descriptors_count(snd_pulse_t * p)
 {
-    assert(p);
+	assert(p);
 
-    if (p->main_fd >= 0)
-        return 1;
-    else
-        return 0;
+	if (p->main_fd >= 0)
+		return 1;
+	else
+		return 0;
 }
 
-int pulse_poll_descriptors(snd_pulse_t *p, struct pollfd *pfd, unsigned int space)
+int pulse_poll_descriptors(snd_pulse_t * p, struct pollfd *pfd,
+			   unsigned int space)
 {
-    assert(p);
+	assert(p);
 
-    assert(space >= 1);
+	assert(space >= 1);
 
-    pfd[0].fd = p->main_fd;
-    pfd[0].events = POLLIN;
-    pfd[0].revents = 0;
+	pfd[0].fd = p->main_fd;
+	pfd[0].events = POLLIN;
+	pfd[0].revents = 0;
 
-    return 1;
+	return 1;
 }
 
-int pulse_poll_revents(snd_pulse_t *p, struct pollfd *pfd, unsigned int nfds, unsigned short *revents)
+int pulse_poll_revents(snd_pulse_t * p, struct pollfd *pfd,
+		       unsigned int nfds, unsigned short *revents)
 {
-    assert(p);
+	assert(p);
 
-    return 1;
+	return 1;
 }
