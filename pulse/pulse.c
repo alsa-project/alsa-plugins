@@ -146,8 +146,6 @@ snd_pulse_t *pulse_new(void)
 	fcntl(fd[0], F_SETFL, O_NONBLOCK);
 	fcntl(fd[1], F_SETFL, O_NONBLOCK);
 
-	signal(SIGPIPE, SIG_IGN);	/* Yes, ugly as hell */
-
 	p->mainloop = pa_threaded_mainloop_new();
 	assert(p->mainloop);
 
