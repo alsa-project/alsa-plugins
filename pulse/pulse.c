@@ -124,7 +124,7 @@ static void context_state_cb(pa_context * c, void *userdata)
 	}
 }
 
-snd_pulse_t *pulse_new()
+snd_pulse_t *pulse_new(void)
 {
 	snd_pulse_t *p;
 	int fd[2] = { -1, -1 };
