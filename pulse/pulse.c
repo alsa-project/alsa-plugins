@@ -174,6 +174,7 @@ void pulse_free(snd_pulse_t * p)
 {
 	pa_threaded_mainloop_stop(p->mainloop);
 
+	pa_context_disconnect(p->context);
 	pa_context_unref(p->context);
 	pa_threaded_mainloop_free(p->mainloop);
 
