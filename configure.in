@@ -45,28 +45,42 @@ if test "$use_maemo_rm" = "yes"; then
         fi
 fi
 
-AC_ARG_WITH([avcodec-includedir],
+PKG_CHECK_MODULES(AVCODEC, [libavcodec], [HAVE_AVCODEC=yes], [HAVE_AVCODEC=no])
+if test "$HAVE_AVCODEC" != "yes"; then
+  AC_ARG_WITH([avcodec-includedir],
 	AS_HELP_STRING([--with-avcodec-includedir=dir],
 		[AVcodec include directory]),
 	[AVCODEC_CFLAGS="-I$withval"], [AVCODEC_CFLAGS=""])
-AC_ARG_WITH([avcodec-libdir],
+  AC_ARG_WITH([avcodec-libdir],
 	AS_HELP_STRING([--with-avcodec-libdir=dir],
 		[AVcodec library directory]),
 	[AVCODEC_LIBS="-L$withval"], [AVCODEC_LIBS=""])
-CFLAGS_saved="$CFLAGS"
-LDFLAGS_saved="$LDFLAGS"
-CFLAGS="$CFLAGS $AVCODEC_CFLAGS"
-LDFLAGS="$LDFLAGS $AVCODEC_LIBS"
-AC_SUBST(AVCODEC_CFLAGS)
-AVCODEC_LIBS="$AVCODEC_LIBS -lavcodec"
-AC_SUBST(AVCODEC_LIBS)
-AC_CHECK_LIB([avcodec], [avcodec_open], [HAVE_AVCODEC=yes], [HAVE_AVCODEC=no])
-if test x$HAVE_AVCODEC = xyes; then
-  AC_CHECK_HEADER([ffmpeg/avcodec.h], [], [HAVE_AVCODEC=no])
+
+  CFLAGS_saved="$CFLAGS"
+  LDFLAGS_saved="$LDFLAGS"
+  CFLAGS="$CFLAGS $AVCODEC_CFLAGS"
+  LDFLAGS="$LDFLAGS $AVCODEC_LIBS"
+  AVCODEC_LIBS="$AVCODEC_LIBS -lavcodec"
+  AC_CHECK_LIB([avcodec], [avcodec_open], [HAVE_AVCODEC=yes], [HAVE_AVCODEC=no])
+  CFLAGS="$CFLAGS_saved"
+  LDFLAGS="$LDFLAGS_saved"
 fi
+
+if test $HAVE_AVCODEC = yes; then
+  AVCODEC_HEADER=""
+  AC_CHECK_HEADER([ffmpeg/avcodec.h], [AVCODEC_HEADER='<ffmpeg/avcodec.h>'])
+  if test -z "$AVCODEC_HEADER"; then
+    AC_CHECK_HEADER([libavcodec/avcodec.h], [AVCODEC_HEADER='<libavcodec/avcodec.h>'])
+  fi
+  if test -z "$AVCODEC_HEADER"; then
+    HAVE_AVCODEC=no
+  fi
+fi
+
 AM_CONDITIONAL(HAVE_AVCODEC, test x$HAVE_AVCODEC = xyes)
-CFLAGS="$CFLAGS_saved"
-LDFLAGS="$LDFLAGS_saved"
+AC_SUBST(AVCODEC_CFLAGS)
+AC_SUBST(AVCODEC_LIBS)
+AC_SUBST(AVCODEC_HEADER)
 
 USE_LIBSPEEX=""
 AC_ARG_WITH([speex],
@@ -155,6 +169,7 @@ echo "A52, lavc plugins:  $HAVE_AVCODEC"
 if test "$HAVE_AVCODEC" = "yes"; then
   echo "  AVCODEC_CFLAGS: $AVCODEC_CFLAGS"
   echo "  AVCODEC_LIBS: $AVCODEC_LIBS"
+  echo "  AVCODEC_HEADER: $AVCODEC_HEADER"
 fi
 echo "Speex rate plugin:  $PPH"
 if test "$PPH" = "lib"; then

@@ -25,7 +25,7 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 #include <alsa/pcm_plugin.h>
-#include <ffmpeg/avcodec.h>
+#include AVCODEC_HEADER
 
 struct a52_ctx {
 	snd_pcm_ioplug_t io;

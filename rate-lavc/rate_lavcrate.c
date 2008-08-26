@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_rate.h>
-#include <ffmpeg/avcodec.h>
+#include AVCODEC_HEADER
 #include "gcd.h"
 
 static int filter_size = 16;
