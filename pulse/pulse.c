@@ -287,27 +287,3 @@ void pulse_poll_deactivate(snd_pulse_t * p)
 	/* Drain the pipe */
 	while (read(p->main_fd, buf, sizeof(buf)) > 0);
 }
-
-int pulse_poll_descriptors_count(snd_pulse_t * p)
-{
-	assert(p);
-
-	if (p->main_fd >= 0)
-		return 1;
-	else
-		return 0;
-}
-
-int pulse_poll_descriptors(snd_pulse_t * p, struct pollfd *pfd,
-			   unsigned int space)
-{
-	assert(p);
-
-	assert(space >= 1);
-
-	pfd[0].fd = p->main_fd;
-	pfd[0].events = POLLIN;
-	pfd[0].revents = 0;
-
-	return 1;
-}

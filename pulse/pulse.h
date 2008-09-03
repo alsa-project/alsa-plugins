@@ -56,6 +56,3 @@ int pulse_connect(snd_pulse_t * p, const char *server);
 
 void pulse_poll_activate(snd_pulse_t * p);
 void pulse_poll_deactivate(snd_pulse_t * p);
-int pulse_poll_descriptors_count(snd_pulse_t * p);
-int pulse_poll_descriptors(snd_pulse_t * p, struct pollfd *pfd,
-			   unsigned int space);
