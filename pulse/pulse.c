@@ -148,6 +148,18 @@ static void context_state_cb(pa_context * c, void *userdata)
 	}
 }
 
+static int make_nonblock(int fd) {
+	int fl;
+
+	if ((fl = fcntl(fd, F_GETFL)) < 0)
+		return fl;
+
+	if (fl & O_NONBLOCK)
+		return 0;
+
+	return fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+}
+
 snd_pulse_t *pulse_new(void)
 {
 	snd_pulse_t *p;
@@ -169,8 +181,8 @@ snd_pulse_t *pulse_new(void)
 	p->main_fd = fd[0];
 	p->thread_fd = fd[1];
 
-	fcntl(fd[0], F_SETFL, O_NONBLOCK);
-	fcntl(fd[1], F_SETFL, O_NONBLOCK);
+	make_nonblock(p->main_fd);
+	make_nonblock(p->thread_fd);
 
 	p->mainloop = pa_threaded_mainloop_new();
 	if (!p->mainloop)
