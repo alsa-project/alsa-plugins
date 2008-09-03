@@ -631,9 +631,9 @@ static int pulse_hw_params(snd_pcm_ioplug_t * io,
 	pcm->ss.channels = io->channels;
 
 	pcm->buffer_attr.maxlength =
-		io->buffer_size * pcm->frame_size;
+		4 * 1024 * 1024;
 	pcm->buffer_attr.tlength =
-		pcm->buffer_attr.maxlength;
+		io->buffer_size * pcm->frame_size;
 	pcm->buffer_attr.prebuf =
 	    (io->buffer_size - io->period_size) * pcm->frame_size;
 	pcm->buffer_attr.minreq = io->period_size * pcm->frame_size;
@@ -757,13 +757,13 @@ static int pulse_hw_constraint(snd_pcm_pulse_t * pcm)
 	err =
 	    snd_pcm_ioplug_set_param_minmax(io,
 					    SND_PCM_IOPLUG_HW_PERIOD_BYTES,
-					    256, 2 * 1024 * 1024);
+					    128, 2 * 1024 * 1024);
 	if (err < 0)
 		return err;
 
 	err =
 	    snd_pcm_ioplug_set_param_minmax(io, SND_PCM_IOPLUG_HW_PERIODS,
-					    2, 1024);
+					    3, 1024);
 	if (err < 0)
 		return err;
 	return 0;
