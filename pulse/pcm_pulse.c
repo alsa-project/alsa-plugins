@@ -410,42 +410,6 @@ static void stream_underrun_cb(pa_stream * p, void *userdata)
 	pcm->underrun = 1;
 }
 
-static int pulse_pcm_poll_descriptors_count(snd_pcm_ioplug_t * io)
-{
-	snd_pcm_pulse_t *pcm = io->private_data;
-	int count;
-
-	assert(pcm);
-	assert(pcm->p);
-
-	pa_threaded_mainloop_lock(pcm->p->mainloop);
-
-	count = pulse_poll_descriptors_count(pcm->p);
-
-	pa_threaded_mainloop_unlock(pcm->p->mainloop);
-
-	return count;
-}
-
-static int pulse_pcm_poll_descriptors(snd_pcm_ioplug_t * io,
-				      struct pollfd *pfd,
-				      unsigned int space)
-{
-	snd_pcm_pulse_t *pcm = io->private_data;
-	int err;
-
-	assert(pcm);
-	assert(pcm->p);
-
-	pa_threaded_mainloop_lock(pcm->p->mainloop);
-
-	err = pulse_poll_descriptors(pcm->p, pfd, space);
-
-	pa_threaded_mainloop_unlock(pcm->p->mainloop);
-
-	return err;
-}
-
 static int pulse_pcm_poll_revents(snd_pcm_ioplug_t * io,
 				  struct pollfd *pfd, unsigned int nfds,
 				  unsigned short *revents)
@@ -696,8 +660,6 @@ static const snd_pcm_ioplug_callback_t pulse_playback_callback = {
 	.pointer = pulse_pointer,
 	.transfer = pulse_write,
 	.delay = pulse_delay,
-	.poll_descriptors_count = pulse_pcm_poll_descriptors_count,
-	.poll_descriptors = pulse_pcm_poll_descriptors,
 	.poll_revents = pulse_pcm_poll_revents,
 	.prepare = pulse_prepare,
 	.hw_params = pulse_hw_params,
@@ -711,8 +673,6 @@ static const snd_pcm_ioplug_callback_t pulse_capture_callback = {
 	.pointer = pulse_pointer,
 	.transfer = pulse_read,
 	.delay = pulse_delay,
-	.poll_descriptors_count = pulse_pcm_poll_descriptors_count,
-	.poll_descriptors = pulse_pcm_poll_descriptors,
 	.poll_revents = pulse_pcm_poll_revents,
 	.prepare = pulse_prepare,
 	.hw_params = pulse_hw_params,
@@ -844,8 +804,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 
 	pcm->io.version = SND_PCM_IOPLUG_VERSION;
 	pcm->io.name = "ALSA <-> PulseAudio PCM I/O Plugin";
-	pcm->io.poll_fd = -1;
-	pcm->io.poll_events = 0;
+	pcm->io.poll_fd = pcm->p->main_fd;
+	pcm->io.poll_events = POLLIN;
 	pcm->io.mmap_rw = 0;
 	pcm->io.callback = stream == SND_PCM_STREAM_PLAYBACK ?
 	    &pulse_playback_callback : &pulse_capture_callback;
@@ -864,7 +824,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 	*pcmp = pcm->io.pcm;
 	return 0;
 
-      error:
+error:
 	if (pcm->p)
 		pulse_free(pcm->p);
 
