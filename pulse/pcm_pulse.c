@@ -539,15 +539,22 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 		r = pa_stream_connect_playback(pcm->stream, pcm->device,
 					       &pcm->buffer_attr,
 					       PA_STREAM_AUTO_TIMING_UPDATE |
-					       PA_STREAM_INTERPOLATE_TIMING,
-					       NULL, NULL);
+					       PA_STREAM_INTERPOLATE_TIMING
+#ifdef PA_STREAM_EARLY_REQUESTS
+					     | PA_STREAM_EARLY_REQUESTS
+#endif
+					       , NULL, NULL);
 	} else {
 		pa_stream_set_read_callback(pcm->stream, stream_request_cb,
 					    pcm);
 		r = pa_stream_connect_record(pcm->stream, pcm->device,
 					     &pcm->buffer_attr,
 					     PA_STREAM_AUTO_TIMING_UPDATE |
-					     PA_STREAM_INTERPOLATE_TIMING);
+					     PA_STREAM_INTERPOLATE_TIMING
+#ifdef PA_STREAM_EARLY_REQUESTS
+					     | PA_STREAM_EARLY_REQUESTS
+#endif
+			);
 	}
 
 	if (r < 0) {
