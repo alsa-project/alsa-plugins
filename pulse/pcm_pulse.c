@@ -616,18 +616,26 @@ static int pulse_hw_params(snd_pcm_ioplug_t * io,
 	case SND_PCM_FORMAT_S16_BE:
 		pcm->ss.format = PA_SAMPLE_S16BE;
 		break;
+#ifdef PA_SAMPLE_FLOAT32LE
 	case SND_PCM_FORMAT_FLOAT_LE:
 		pcm->ss.format = PA_SAMPLE_FLOAT32LE;
 		break;
+#endif
+#ifdef PA_SAMPLE_FLOAT32BE
 	case SND_PCM_FORMAT_FLOAT_BE:
 		pcm->ss.format = PA_SAMPLE_FLOAT32BE;
 		break;
+#endif
+#ifdef PA_SAMPLE_S32LE
 	case SND_PCM_FORMAT_S32_LE:
 		pcm->ss.format = PA_SAMPLE_S32LE;
 		break;
+#endif
+#ifdef PA_SAMPLE_S32BE
 	case SND_PCM_FORMAT_S32_BE:
 		pcm->ss.format = PA_SAMPLE_S32BE;
 		break;
+#endif
 	default:
 		SNDERR("PulseAudio: Unsupported format %s\n",
 			snd_pcm_format_name(io->format));
