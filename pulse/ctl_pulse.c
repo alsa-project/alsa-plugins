@@ -59,7 +59,7 @@ static void sink_info_cb(pa_context * c, const pa_sink_info * i,
 			 int is_last, void *userdata)
 {
 	snd_ctl_pulse_t *ctl = (snd_ctl_pulse_t *) userdata;
-	int chan;
+	int changed = 0;
 
 	assert(ctl);
 
@@ -73,30 +73,24 @@ static void sink_info_cb(pa_context * c, const pa_sink_info * i,
 	if (!!ctl->sink_muted != !!i->mute) {
 		ctl->sink_muted = i->mute;
 		ctl->updated |= UPDATE_SINK_MUTE;
-		pulse_poll_activate(ctl->p);
+		changed = 1;
 	}
 
-	if (ctl->sink_volume.channels == i->volume.channels) {
-		for (chan = 0; chan < ctl->sink_volume.channels; chan++)
-			if (i->volume.values[chan] !=
-			    ctl->sink_volume.values[chan])
-				break;
-
-		if (chan == ctl->sink_volume.channels)
-			return;
-
+	if (!pa_cvolume_equal(&ctl->sink_volume, &i->volume)) {
+		ctl->sink_volume = i->volume;
 		ctl->updated |= UPDATE_SINK_VOL;
-		pulse_poll_activate(ctl->p);
+		changed = 1;
 	}
 
-	memcpy(&ctl->sink_volume, &i->volume, sizeof(pa_cvolume));
+	if (changed)
+		pulse_poll_activate(ctl->p);
 }
 
 static void source_info_cb(pa_context * c, const pa_source_info * i,
 			   int is_last, void *userdata)
 {
 	snd_ctl_pulse_t *ctl = (snd_ctl_pulse_t *) userdata;
-	int chan;
+	int changed = 0;
 
 	assert(ctl);
 
@@ -110,23 +104,18 @@ static void source_info_cb(pa_context * c, const pa_source_info * i,
 	if (!!ctl->source_muted != !!i->mute) {
 		ctl->source_muted = i->mute;
 		ctl->updated |= UPDATE_SOURCE_MUTE;
-		pulse_poll_activate(ctl->p);
+		changed = 1;
 	}
 
-	if (ctl->source_volume.channels == i->volume.channels) {
-		for (chan = 0; chan < ctl->source_volume.channels; chan++)
-			if (i->volume.values[chan] !=
-			    ctl->source_volume.values[chan])
-				break;
-
-		if (chan == ctl->source_volume.channels)
-			return;
-
+	if (!pa_cvolume_equal(&ctl->source_volume, &i->volume)) {
+		ctl->source_volume = i->volume;
 		ctl->updated |= UPDATE_SOURCE_VOL;
-		pulse_poll_activate(ctl->p);
+		changed = 1;
 	}
 
-	memcpy(&ctl->source_volume, &i->volume, sizeof(pa_cvolume));
+	if (changed)
+		pulse_poll_activate(ctl->p);
+
 }
 
 static void event_cb(pa_context * c, pa_subscription_event_type_t t,
@@ -135,16 +124,22 @@ static void event_cb(pa_context * c, pa_subscription_event_type_t t,
 	snd_ctl_pulse_t *ctl = (snd_ctl_pulse_t *) userdata;
 	pa_operation *o;
 
-	assert(ctl && ctl->p && ctl->p->context);
+	assert(ctl);
+	assert(ctl->p);
+	assert(ctl->p->context);
 
 	o = pa_context_get_sink_info_by_name(ctl->p->context, ctl->sink,
 					     sink_info_cb, ctl);
-	pa_operation_unref(o);
+
+	if (o)
+		pa_operation_unref(o);
 
 	o = pa_context_get_source_info_by_name(ctl->p->context,
 					       ctl->source, source_info_cb,
 					       ctl);
-	pa_operation_unref(o);
+
+	if (o)
+		pa_operation_unref(o);
 }
 
 static int pulse_update_volume(snd_ctl_pulse_t * ctl)
@@ -152,20 +147,30 @@ static int pulse_update_volume(snd_ctl_pulse_t * ctl)
 	int err;
 	pa_operation *o;
 
-	assert(ctl && ctl->p && ctl->p->context);
+	assert(ctl);
+	assert(ctl->p);
+	assert(ctl->p->context);
 
 	o = pa_context_get_sink_info_by_name(ctl->p->context, ctl->sink,
 					     sink_info_cb, ctl);
-	err = pulse_wait_operation(ctl->p, o);
-	pa_operation_unref(o);
+	if (o) {
+		err = pulse_wait_operation(ctl->p, o);
+		pa_operation_unref(o);
+	} else
+		err = -EIO;
+
 	if (err < 0)
 		return err;
 
 	o = pa_context_get_source_info_by_name(ctl->p->context,
 					       ctl->source, source_info_cb,
 					       ctl);
-	err = pulse_wait_operation(ctl->p, o);
-	pa_operation_unref(o);
+	if (o) {
+		err = pulse_wait_operation(ctl->p, o);
+		pa_operation_unref(o);
+	} else
+		err = -EIO;
+
 	if (err < 0)
 		return err;
 
@@ -430,8 +435,14 @@ static int pulse_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
 							     ctl->p);
 	}
 
+	if (!o) {
+		err = -EIO;
+		goto finish;
+	}
+
 	err = pulse_wait_operation(ctl->p, o);
 	pa_operation_unref(o);
+
 	if (err < 0)
 		goto finish;
 
@@ -554,10 +565,10 @@ static int pulse_ctl_poll_revents(snd_ctl_ext_t * ext, struct pollfd *pfd,
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
 
-	*revents = 0;
-
 	if (ctl->updated)
-		*revents |= POLLIN;
+		*revents = POLLIN;
+	else
+		*revents = 0;
 
 	pa_threaded_mainloop_unlock(ctl->p->mainloop);
 
@@ -664,6 +675,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 	}
 
 	ctl = calloc(1, sizeof(*ctl));
+	if (!ctl)
+		return -ENOMEM;
 
 	ctl->p = pulse_new();
 	if (!ctl->p) {
@@ -680,19 +693,32 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 	else if (device)
 		ctl->source = strdup(device);
 
+	if ((source || device) && !ctl->source) {
+		err = -ENOMEM;
+		goto error;
+	}
+
 	if (sink)
 		ctl->sink = strdup(sink);
 	else if (device)
 		ctl->sink = strdup(device);
+
+	if ((sink || device) && !ctl->sink) {
+		err = -ENOMEM;
+		goto error;
+	}
 
 	if (!ctl->source || !ctl->sink) {
 		pa_threaded_mainloop_lock(ctl->p->mainloop);
 
 		o = pa_context_get_server_info(ctl->p->context,
 					       server_info_cb, ctl);
-		err = pulse_wait_operation(ctl->p, o);
 
-		pa_operation_unref(o);
+		if (o) {
+			err = pulse_wait_operation(ctl->p, o);
+			pa_operation_unref(o);
+		} else
+			err = -EIO;
 
 		pa_threaded_mainloop_unlock(ctl->p->mainloop);
 
@@ -709,9 +735,11 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 				 PA_SUBSCRIPTION_MASK_SOURCE,
 				 pulse_context_success_cb, ctl->p);
 
-	err = pulse_wait_operation(ctl->p, o);
-
-	pa_operation_unref(o);
+	if (o) {
+		err = pulse_wait_operation(ctl->p, o);
+		pa_operation_unref(o);
+	} else
+		err = -EIO;
 
 	pa_threaded_mainloop_unlock(ctl->p->mainloop);
 
@@ -740,7 +768,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 
 	return 0;
 
-      error:
+error:
 	if (ctl->source)
 		free(ctl->source);
 	if (ctl->sink)
