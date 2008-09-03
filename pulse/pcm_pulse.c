@@ -689,7 +689,7 @@ static int pulse_close(snd_pcm_ioplug_t * io)
 	return 0;
 }
 
-static snd_pcm_ioplug_callback_t pulse_playback_callback = {
+static const snd_pcm_ioplug_callback_t pulse_playback_callback = {
 	.start = pulse_start,
 	.stop = pulse_stop,
 	.drain = pulse_drain,
@@ -705,7 +705,7 @@ static snd_pcm_ioplug_callback_t pulse_playback_callback = {
 };
 
 
-static snd_pcm_ioplug_callback_t pulse_capture_callback = {
+static const snd_pcm_ioplug_callback_t pulse_capture_callback = {
 	.start = pulse_start,
 	.stop = pulse_stop,
 	.pointer = pulse_pointer,
