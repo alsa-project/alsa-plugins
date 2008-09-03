@@ -45,18 +45,24 @@ typedef struct snd_pcm_pulse {
 	pa_stream *stream;
 
 	pa_sample_spec ss;
-	unsigned int frame_size;
+	size_t frame_size;
 	pa_buffer_attr buffer_attr;
 } snd_pcm_pulse_t;
 
-static void update_ptr(snd_pcm_pulse_t * pcm)
+static int update_ptr(snd_pcm_pulse_t *pcm)
 {
 	size_t size;
 
 	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK)
 		size = pa_stream_writable_size(pcm->stream);
 	else
-		size = pa_stream_readable_size(pcm->stream) - pcm->offset;
+		size = pa_stream_readable_size(pcm->stream);
+
+	if (size == (size_t) -1)
+		return -EIO;
+
+	if (pcm->io.stream == SND_PCM_STREAM_CAPTURE)
+		size -= pcm->offset;
 
 	if (size > pcm->last_size) {
 		pcm->ptr += size - pcm->last_size;
@@ -64,6 +70,52 @@ static void update_ptr(snd_pcm_pulse_t * pcm)
 	}
 
 	pcm->last_size = size;
+	return 0;
+  }
+
+static int check_active(snd_pcm_pulse_t *pcm) {
+	assert(pcm);
+
+	/*
+	 * ALSA thinks in periods, not bytes, samples or frames.
+	 */
+
+	if (pcm->io.stream == SND_PCM_STREAM_PLAYBACK) {
+		size_t wsize;
+
+		wsize = pa_stream_writable_size(pcm->stream);
+
+		if (wsize == (size_t) -1)
+			return -EIO;
+
+		return wsize >= pcm->buffer_attr.minreq;
+	} else {
+		size_t rsize;
+
+		rsize = pa_stream_readable_size(pcm->stream);
+
+		if (rsize == (size_t) -1)
+			return -EIO;
+
+		return rsize >= pcm->buffer_attr.fragsize;
+	}
+}
+
+static int update_active(snd_pcm_pulse_t *pcm) {
+	int ret;
+
+	assert(pcm);
+
+	ret = check_active(pcm);
+	if (ret < 0)
+		return ret;
+
+	if (ret > 0)
+		pulse_poll_activate(pcm->p);
+	else
+		pulse_poll_deactivate(pcm->p);
+
+	return 0;
 }
 
 static int pulse_start(snd_pcm_ioplug_t * io)
@@ -75,13 +127,13 @@ static int pulse_start(snd_pcm_ioplug_t * io)
 	assert(pcm);
 	assert(pcm->p);
 
-	if (pcm->stream == NULL)
-		return 0;
-
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
 	err = pulse_check_connection(pcm->p);
 	if (err < 0)
+		goto finish;
+
+	if (pcm->stream == NULL)
 		goto finish;
 
 	o = pa_stream_cork(pcm->stream, 0, pulse_stream_success_cb,
@@ -99,6 +151,7 @@ static int pulse_start(snd_pcm_ioplug_t * io)
 		goto finish;
 	}
 
+	pcm->underrun = 0;
 	err_o = pulse_wait_operation(pcm->p, o);
 	err_u = pulse_wait_operation(pcm->p, u);
 
@@ -108,11 +161,10 @@ static int pulse_start(snd_pcm_ioplug_t * io)
 	if (err_o < 0 || err_u < 0) {
 		err = -EIO;
 		goto finish;
-	} else
-		pcm->underrun = 0;
+	}
 
 
-      finish:
+finish:
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
@@ -121,8 +173,8 @@ static int pulse_start(snd_pcm_ioplug_t * io)
 static int pulse_stop(snd_pcm_ioplug_t * io)
 {
 	snd_pcm_pulse_t *pcm = io->private_data;
-	pa_operation *o;
-	int err = 0;
+	pa_operation *o, *u;
+	int err = 0, err_o = 0, err_u = 0;
 
 	assert(pcm);
 	assert(pcm->p);
@@ -133,24 +185,8 @@ static int pulse_stop(snd_pcm_ioplug_t * io)
 	if (err < 0)
 		goto finish;
 
-	/* If stream connection fails, this gets called anyway */
 	if (pcm->stream == NULL)
 		goto finish;
-
-	o = pa_stream_flush(pcm->stream, pulse_stream_success_cb, pcm->p);
-	if (!o) {
-		err = -EIO;
-		goto finish;
-	}
-
-	err = pulse_wait_operation(pcm->p, o);
-
-	pa_operation_unref(o);
-
-	if (err < 0) {
-		err = -EIO;
-		goto finish;
-	}
 
 	o = pa_stream_cork(pcm->stream, 1, pulse_stream_success_cb,
 			   pcm->p);
@@ -159,16 +195,26 @@ static int pulse_stop(snd_pcm_ioplug_t * io)
 		goto finish;
 	}
 
-	err = pulse_wait_operation(pcm->p, o);
-
-	pa_operation_unref(o);
-
-	if (err < 0) {
+	u = pa_stream_flush(pcm->stream, pulse_stream_success_cb,
+			    pcm->p);
+	if (!u) {
+		pa_operation_unref(o);
 		err = -EIO;
 		goto finish;
 	}
 
-      finish:
+	err_o = pulse_wait_operation(pcm->p, o);
+	err_u = pulse_wait_operation(pcm->p, u);
+
+	pa_operation_unref(o);
+	pa_operation_unref(u);
+
+	if (err_o < 0 || err_u < 0) {
+		err = -EIO;
+		goto finish;
+	}
+
+finish:
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
@@ -184,8 +230,6 @@ int pulse_drain(snd_pcm_ioplug_t * io)
 	assert(pcm->p);
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
-
-	assert(pcm->stream);
 
 	err = pulse_check_connection(pcm->p);
 	if (err < 0)
@@ -206,7 +250,7 @@ int pulse_drain(snd_pcm_ioplug_t * io)
 		goto finish;
 	}
 
-      finish:
+finish:
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
@@ -215,37 +259,53 @@ int pulse_drain(snd_pcm_ioplug_t * io)
 static snd_pcm_sframes_t pulse_pointer(snd_pcm_ioplug_t * io)
 {
 	snd_pcm_pulse_t *pcm = io->private_data;
-	int err = 0;
+	snd_pcm_sframes_t ret = 0;
 
 	assert(pcm);
 	assert(pcm->p);
+
+	if (io->state == SND_PCM_STATE_XRUN)
+		return -EPIPE;
+
+	if (io->state != SND_PCM_STATE_RUNNING)
+		return 0;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
 	assert(pcm->stream);
 
-	err = pulse_check_connection(pcm->p);
-	if (err < 0)
+	ret = pulse_check_connection(pcm->p);
+	if (ret < 0)
 		goto finish;
 
-	update_ptr(pcm);
+	if (pcm->underrun) {
+		ret = -EPIPE;
+		goto finish;
+	}
 
-	err = snd_pcm_bytes_to_frames(io->pcm, pcm->ptr);
+	ret = update_ptr(pcm);
+	if (ret < 0) {
+		ret = -EPIPE;
+		goto finish;
+	}
 
 	if (pcm->underrun)
-		err = -EPIPE;
+		ret = -EPIPE;
+	else
+		ret = snd_pcm_bytes_to_frames(io->pcm, pcm->ptr);
 
-      finish:
+finish:
+
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
-	return err;
+	return ret;
 }
 
 static int pulse_delay(snd_pcm_ioplug_t * io, snd_pcm_sframes_t * delayp)
 {
 	snd_pcm_pulse_t *pcm = io->private_data;
 	int err = 0;
-	pa_usec_t lat;
+	pa_usec_t lat = 0;
 
 	assert(pcm);
 	assert(pcm->p);
@@ -254,23 +314,34 @@ static int pulse_delay(snd_pcm_ioplug_t * io, snd_pcm_sframes_t * delayp)
 
 	assert(pcm->stream);
 
-	err = pulse_check_connection(pcm->p);
-	if (err < 0)
-		goto finish;
+	for (;;) {
+		err = pulse_check_connection(pcm->p);
+		if (err < 0)
+			goto finish;
 
-	if (pa_stream_get_latency(pcm->stream, &lat, NULL)) {
-		err = -EIO;
-		goto finish;
+		err = pa_stream_get_latency(pcm->stream, &lat, NULL);
+		if (err) {
+			if (err != PA_ERR_NODATA) {
+				err = -EIO;
+				goto finish;
+			}
+		} else
+			break;
+
+		pa_threaded_mainloop_wait(pcm->p->mainloop);
 	}
 
 	*delayp =
 	    snd_pcm_bytes_to_frames(io->pcm,
 				    pa_usec_to_bytes(lat, &pcm->ss));
 
+	err = 0;
+
+finish:
+
 	if (pcm->underrun && pcm->io.state == SND_PCM_STATE_RUNNING)
 		snd_pcm_ioplug_set_state(io, SND_PCM_STATE_XRUN);
 
-      finish:
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;
@@ -283,7 +354,7 @@ static snd_pcm_sframes_t pulse_write(snd_pcm_ioplug_t * io,
 {
 	snd_pcm_pulse_t *pcm = io->private_data;
 	const char *buf;
-	int err = 0;
+	snd_pcm_sframes_t ret = 0;
 
 	assert(pcm);
 	assert(pcm->p);
@@ -292,35 +363,42 @@ static snd_pcm_sframes_t pulse_write(snd_pcm_ioplug_t * io,
 
 	assert(pcm->stream);
 
-	err = pulse_check_connection(pcm->p);
-	if (err < 0)
+	ret = pulse_check_connection(pcm->p);
+	if (ret < 0)
 		goto finish;
 
 	/* Make sure the buffer pointer is in sync */
-	update_ptr(pcm);
-
-	assert(pcm->last_size >= (size * pcm->frame_size));
+	ret = update_ptr(pcm);
+	if (ret < 0)
+		goto finish;
 
 	buf =
 	    (char *) areas->addr + (areas->first +
 				    areas->step * offset) / 8;
 
-	pa_stream_write(pcm->stream, buf, size * pcm->frame_size, NULL, 0,
-			0);
+	ret = pa_stream_write(pcm->stream, buf, size * pcm->frame_size, NULL, 0, 0);
+	if (ret < 0) {
+		ret = -EIO;
+		goto finish;
+	}
 
 	/* Make sure the buffer pointer is in sync */
-	update_ptr(pcm);
+	ret = update_ptr(pcm);
+	if (ret < 0)
+		goto finish;
 
-	if (pcm->last_size < pcm->buffer_attr.minreq)
-		pulse_poll_deactivate(pcm->p);
 
-	err = size;
+	ret = update_active(pcm);
+	if (ret < 0)
+		goto finish;
+
+	ret = size;
 	pcm->underrun = 0;
 
-      finish:
+finish:
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
-	return err;
+	return ret;
 }
 
 static snd_pcm_sframes_t pulse_read(snd_pcm_ioplug_t * io,
@@ -329,9 +407,9 @@ static snd_pcm_sframes_t pulse_read(snd_pcm_ioplug_t * io,
 				    snd_pcm_uframes_t size)
 {
 	snd_pcm_pulse_t *pcm = io->private_data;
-	void *dst_buf, *src_buf;
+	void *dst_buf;
 	size_t remain_size, frag_length;
-	int err = 0;
+	snd_pcm_sframes_t ret = 0;
 
 	assert(pcm);
 	assert(pcm->p);
@@ -340,12 +418,14 @@ static snd_pcm_sframes_t pulse_read(snd_pcm_ioplug_t * io,
 
 	assert(pcm->stream);
 
-	err = pulse_check_connection(pcm->p);
-	if (err < 0)
+	ret = pulse_check_connection(pcm->p);
+	if (ret < 0)
 		goto finish;
 
 	/* Make sure the buffer pointer is in sync */
-	update_ptr(pcm);
+	ret = update_ptr(pcm);
+	if (ret < 0)
+		goto finish;
 
 	remain_size = size * pcm->frame_size;
 
@@ -353,8 +433,13 @@ static snd_pcm_sframes_t pulse_read(snd_pcm_ioplug_t * io,
 	    (char *) areas->addr + (areas->first +
 				    areas->step * offset) / 8;
 	while (remain_size > 0) {
-		pa_stream_peek(pcm->stream, (const void **) &src_buf,
-			       &frag_length);
+		const void *src_buf;
+
+		if (pa_stream_peek(pcm->stream, &src_buf, &frag_length) < 0) {
+			ret = -EIO;
+			goto finish;
+		}
+
 		if (frag_length == 0)
 			break;
 
@@ -377,17 +462,20 @@ static snd_pcm_sframes_t pulse_read(snd_pcm_ioplug_t * io,
 	}
 
 	/* Make sure the buffer pointer is in sync */
-	update_ptr(pcm);
+	ret = update_ptr(pcm);
+	if (ret < 0)
+		goto finish;
 
-	if (pcm->last_size < pcm->buffer_attr.minreq)
-		pulse_poll_deactivate(pcm->p);
+	ret = update_active(pcm);
+	if (ret < 0)
+		goto finish;
 
-	err = size - (remain_size / pcm->frame_size);
+	ret = size - (remain_size / pcm->frame_size);
 
-      finish:
+finish:
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
-	return err;
+	return ret;
 }
 
 static void stream_request_cb(pa_stream * p, size_t length, void *userdata)
@@ -397,7 +485,7 @@ static void stream_request_cb(pa_stream * p, size_t length, void *userdata)
 	assert(pcm);
 	assert(pcm->p);
 
-	pulse_poll_activate(pcm->p);
+	update_active(pcm);
 }
 
 static void stream_underrun_cb(pa_stream * p, void *userdata)
@@ -410,34 +498,38 @@ static void stream_underrun_cb(pa_stream * p, void *userdata)
 	pcm->underrun = 1;
 }
 
+static void stream_latency_cb(pa_stream *p, void *userdata) {
+	snd_pcm_pulse_t *pcm = userdata;
+
+	assert(pcm);
+	assert(pcm->p);
+
+	pa_threaded_mainloop_signal(pcm->p->mainloop, 0);
+}
+
 static int pulse_pcm_poll_revents(snd_pcm_ioplug_t * io,
 				  struct pollfd *pfd, unsigned int nfds,
 				  unsigned short *revents)
 {
-	snd_pcm_pulse_t *pcm = io->private_data;
 	int err = 0;
+	snd_pcm_pulse_t *pcm = io->private_data;
 
 	assert(pcm);
 	assert(pcm->p);
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	*revents = 0;
+	err = check_active(pcm);
 
-	/*
-	 * Make sure we have an up-to-date value.
-	 */
-	update_ptr(pcm);
+	if (err < 0)
+		goto finish;
 
-	/*
-	 * ALSA thinks in periods, not bytes, samples or frames.
-	 */
-	if (pcm->last_size >= pcm->buffer_attr.minreq) {
-		if (io->stream == SND_PCM_STREAM_PLAYBACK)
-			*revents |= POLLOUT;
-		else
-			*revents |= POLLIN;
-	}
+	if (err > 0)
+		*revents = io->stream == SND_PCM_STREAM_PLAYBACK ? POLLOUT : POLLIN;
+	else
+		*revents = 0;
+
+finish:
 
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
@@ -495,6 +587,8 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 	pa_stream_set_state_callback(pcm->stream, pulse_stream_state_cb,
 				     pcm->p);
 
+	pa_stream_set_latency_update_callback(pcm->stream, stream_latency_cb, pcm);
+
 	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
 		pa_stream_set_write_callback(pcm->stream,
 					     stream_request_cb, pcm);
@@ -538,8 +632,6 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 		goto finish;
 	}
 
-	pcm->last_size = 0;
-	pcm->ptr = 0;
 	pcm->offset = 0;
 	pcm->underrun = 0;
 
@@ -553,7 +645,6 @@ static int pulse_hw_params(snd_pcm_ioplug_t * io,
 			   snd_pcm_hw_params_t * params)
 {
 	snd_pcm_pulse_t *pcm = io->private_data;
-	snd_pcm_t *base = io->pcm;
 	int err = 0;
 
 	assert(pcm);
@@ -635,8 +726,6 @@ static int pulse_close(snd_pcm_ioplug_t * io)
 
 	if (pcm->stream) {
 		pa_stream_disconnect(pcm->stream);
-		pulse_wait_stream_state(pcm->p, pcm->stream,
-					PA_STREAM_TERMINATED);
 		pa_stream_unref(pcm->stream);
 	}
 
