@@ -592,7 +592,7 @@ static void pulse_close(snd_ctl_ext_t * ext)
 	free(ctl);
 }
 
-static snd_ctl_ext_callback_t pulse_ext_callback = {
+static const snd_ctl_ext_callback_t pulse_ext_callback = {
 	.elem_count = pulse_elem_count,
 	.elem_list = pulse_elem_list,
 	.find_elem = pulse_find_elem,
