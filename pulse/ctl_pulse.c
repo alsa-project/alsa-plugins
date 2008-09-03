@@ -513,46 +513,6 @@ static int pulse_read_event(snd_ctl_ext_t * ext, snd_ctl_elem_id_t * id,
 	return err;
 }
 
-static int pulse_ctl_poll_descriptors_count(snd_ctl_ext_t * ext)
-{
-	snd_ctl_pulse_t *ctl = ext->private_data;
-	int count;
-
-	assert(ctl);
-	assert(ctl->p);
-
-	pa_threaded_mainloop_lock(ctl->p->mainloop);
-
-	count = pulse_poll_descriptors_count(ctl->p);
-
-	pa_threaded_mainloop_unlock(ctl->p->mainloop);
-
-	return count;
-}
-
-static int pulse_ctl_poll_descriptors(snd_ctl_ext_t * ext,
-				      struct pollfd *pfd,
-				      unsigned int space)
-{
-	int num;
-
-	snd_ctl_pulse_t *ctl = ext->private_data;
-
-	assert(ctl);
-	assert(ctl->p);
-
-	pa_threaded_mainloop_lock(ctl->p->mainloop);
-
-	num = pulse_poll_descriptors(ctl->p, pfd, space);
-	if (num < 0)
-		goto finish;
-
-      finish:
-	pa_threaded_mainloop_unlock(ctl->p->mainloop);
-
-	return num;
-}
-
 static int pulse_ctl_poll_revents(snd_ctl_ext_t * ext, struct pollfd *pfd,
 				  unsigned int nfds,
 				  unsigned short *revents)
@@ -602,8 +562,6 @@ static const snd_ctl_ext_callback_t pulse_ext_callback = {
 	.write_integer = pulse_write_integer,
 	.subscribe_events = pulse_subscribe_events,
 	.read_event = pulse_read_event,
-	.poll_descriptors_count = pulse_ctl_poll_descriptors_count,
-	.poll_descriptors = pulse_ctl_poll_descriptors,
 	.poll_revents = pulse_ctl_poll_revents,
 	.close = pulse_close,
 };
@@ -756,7 +714,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 		sizeof(ctl->ext.longname) - 1);
 	strncpy(ctl->ext.mixername, "PulseAudio",
 		sizeof(ctl->ext.mixername) - 1);
-	ctl->ext.poll_fd = -1;
+	ctl->ext.poll_fd = ctl->p->main_fd;
+
 	ctl->ext.callback = &pulse_ext_callback;
 	ctl->ext.private_data = ctl;
 
