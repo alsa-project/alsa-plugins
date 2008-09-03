@@ -485,6 +485,7 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 	pa_channel_map map;
 	snd_pcm_pulse_t *pcm = io->private_data;
 	int err = 0, r;
+	unsigned c, d;
 
 	assert(pcm);
 	assert(pcm->p);
@@ -505,22 +506,22 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 
 	assert(pcm->stream == NULL);
 
+	for (c = pcm->ss.channels; c > 0; c--)
+		if (pa_channel_map_init_auto(&map, c, PA_CHANNEL_MAP_ALSA))
+			break;
+
+	/* Extend if nessary */
+	for (d = c; d < pcm->ss.channels; d++)
+		map.map[d] = PA_CHANNEL_POSITION_AUX0+(d-c);
+
+	map.channels = pcm->ss.channels;
+
 	if (io->stream == SND_PCM_STREAM_PLAYBACK)
 		pcm->stream =
-		    pa_stream_new(pcm->p->context, "ALSA Playback",
-				  &pcm->ss, pa_channel_map_init_auto(&map,
-								     pcm->
-								     ss.
-								     channels,
-								     PA_CHANNEL_MAP_ALSA));
+		    pa_stream_new(pcm->p->context, "ALSA Playback", &pcm->ss, &map);
 	else
 		pcm->stream =
-		    pa_stream_new(pcm->p->context, "ALSA Capture",
-				  &pcm->ss, pa_channel_map_init_auto(&map,
-								     pcm->
-								     ss.
-								     channels,
-								     PA_CHANNEL_MAP_ALSA));
+		    pa_stream_new(pcm->p->context, "ALSA Capture", &pcm->ss, &map);
 
 	if (!pcm->stream) {
 		err = -ENOMEM;
