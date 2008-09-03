@@ -272,9 +272,10 @@ int pulse_connect(snd_pulse_t * p, const char *server)
 
 void pulse_poll_activate(snd_pulse_t * p)
 {
+	static const char x = 'x';
 	assert(p);
 
-	write(p->thread_fd, "a", 1);
+	write(p->thread_fd, &x, 1);
 }
 
 void pulse_poll_deactivate(snd_pulse_t * p)
