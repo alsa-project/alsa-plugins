@@ -728,14 +728,11 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 	return 0;
 
 error:
-	if (ctl->source)
-		free(ctl->source);
-	if (ctl->sink)
-		free(ctl->sink);
-
 	if (ctl->p)
 		pulse_free(ctl->p);
 
+	free(ctl->source);
+	free(ctl->sink);
 	free(ctl);
 
 	return err;
