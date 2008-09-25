@@ -188,9 +188,6 @@ snd_pulse_t *pulse_new(void)
 	if (!p->mainloop)
 		goto fail;
 
-	if (pa_threaded_mainloop_start(p->mainloop) < 0)
-		goto fail;
-
 	if (pa_get_binary_name(proc, sizeof(proc)))
 		snprintf(buf, sizeof(buf), "ALSA plug-in [%s]",
 			 pa_path_get_filename(proc));
@@ -203,6 +200,9 @@ snd_pulse_t *pulse_new(void)
 	assert(p->context);
 
 	pa_context_set_state_callback(p->context, context_state_cb, p);
+
+	if (pa_threaded_mainloop_start(p->mainloop) < 0)
+		goto fail;
 
 	return p;
 
