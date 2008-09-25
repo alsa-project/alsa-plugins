@@ -208,6 +208,12 @@ snd_pulse_t *pulse_new(void)
 
 fail:
 	if (p->mainloop)
+		pa_threaded_mainloop_stop(p->mainloop);
+
+	if (p->context)
+		pa_context_unref(p->context);
+
+	if (p->mainloop)
 		pa_threaded_mainloop_free(p->mainloop);
 
 	if (p->main_fd >= 0)
