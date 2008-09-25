@@ -917,6 +917,7 @@ error:
 	if (pcm->p)
 		pulse_free(pcm->p);
 
+	free(pcm->device);
 	free(pcm);
 
 	return err;
