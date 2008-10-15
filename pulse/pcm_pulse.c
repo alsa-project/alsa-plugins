@@ -145,18 +145,15 @@ static int pulse_start(snd_pcm_ioplug_t * io)
 
 	u = pa_stream_trigger(pcm->stream, pulse_stream_success_cb,
 			      pcm->p);
-	if (!u) {
-		pa_operation_unref(o);
-		err = -EIO;
-		goto finish;
-	}
 
 	pcm->underrun = 0;
 	err_o = pulse_wait_operation(pcm->p, o);
-	err_u = pulse_wait_operation(pcm->p, u);
+	if (u)
+		err_u = pulse_wait_operation(pcm->p, u);
 
 	pa_operation_unref(o);
-	pa_operation_unref(u);
+	if (u)
+		pa_operation_unref(u);
 
 	if (err_o < 0 || err_u < 0) {
 		err = -EIO;
