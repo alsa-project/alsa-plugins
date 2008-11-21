@@ -1083,7 +1083,7 @@ static void dsp_protocol_linear2Q15(const unsigned short int input,
 static void dsp_protocol_Q152linear(const unsigned short int scale,
 				    const unsigned short int power2, unsigned short int *output)
 {
-	float result = scale * 1.0 / 0x8000 * pow(2.0, 1.0 * power2) * 100.0;
+	float result = scale * 1.0 / 0x8000 * (1 << power2) * 100.0;
 	DENTER();
 	*output = (short int)(result);
 	if ((result - *output) > 0.5)
