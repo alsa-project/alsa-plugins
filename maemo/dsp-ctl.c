@@ -66,7 +66,7 @@ static snd_ctl_dsp_t *free_ref;
  * 
  * @return zero. success.
  */ 
-int free_control_list(control_list_t * control_list)
+static int free_control_list(control_list_t * control_list)
 {
 	struct list_head *pos, *q;
 	control_list_t *tmp;
@@ -616,9 +616,9 @@ SND_CTL_PLUGIN_DEFINE_FUNC(dsp_ctl)
 	DLEAVE(ret);
 	return ret;
 }
-void dsp_ctl_descructor(void) __attribute__ ((destructor));
+static void dsp_ctl_descructor(void) __attribute__ ((destructor));
 
-void dsp_ctl_descructor(void)
+static void dsp_ctl_descructor(void)
 {
 	DENTER();
 	DPRINT("dsp ctl destructor\n");

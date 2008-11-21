@@ -217,7 +217,7 @@ finish:
 	return err;
 }
 
-int pulse_drain(snd_pcm_ioplug_t * io)
+static int pulse_drain(snd_pcm_ioplug_t * io)
 {
 	snd_pcm_pulse_t *pcm = io->private_data;
 	pa_operation *o;

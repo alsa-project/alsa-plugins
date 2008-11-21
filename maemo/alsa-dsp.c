@@ -745,9 +745,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(alsa_dsp)
 }
 
 
-void alsa_dsp_descructor(void) __attribute__ ((destructor));
+static void alsa_dsp_descructor(void) __attribute__ ((destructor));
 
-void alsa_dsp_descructor(void)
+static void alsa_dsp_descructor(void)
 {
 	DENTER();
 	DPRINT("alsa dsp destructor\n");

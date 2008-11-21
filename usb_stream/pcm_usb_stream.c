@@ -75,7 +75,7 @@ typedef struct {
 static struct user_usb_stream *uus;
 static pthread_mutex_t uus_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-struct user_usb_stream *get_uus(const char *card)
+static struct user_usb_stream *get_uus(const char *card)
 {
 	pthread_mutex_lock(&uus_mutex);
 
