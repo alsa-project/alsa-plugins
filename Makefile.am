@@ -21,6 +21,7 @@ endif
 SUBDIRS = oss mix $(PPHDIR) $(JACKDIR) $(PULSEDIR) $(SAMPLERATEDIR) $(A52DIR) $(LAVCRATEDIR) $(MAEMODIR) usb_stream doc
 EXTRA_DIST = gitcompile version COPYING.GPL
 AUTOMAKE_OPTIONS = foreign
+ACLOCAL_AMFLAGS = -I m4
 
 dist-hook:
 	-chmod -R a+r $(distdir)
