@@ -233,7 +233,7 @@ static int oss_hw_params(snd_pcm_ioplug_t *io,
 static int oss_hw_constraint(snd_pcm_oss_t *oss)
 {
 	snd_pcm_ioplug_t *io = &oss->io; 
-	static snd_pcm_access_t access_list[] = {
+	static const snd_pcm_access_t access_list[] = {
 		SND_PCM_ACCESS_RW_INTERLEAVED,
 		SND_PCM_ACCESS_MMAP_INTERLEAVED
 	};
@@ -242,7 +242,7 @@ static int oss_hw_constraint(snd_pcm_oss_t *oss)
 	unsigned int nchannels;
 	unsigned int channel[6];
 	/* period and buffer bytes must be power of two */
-	static unsigned int bytes_list[] = {
+	static const unsigned int bytes_list[] = {
 		1U<<8, 1U<<9, 1U<<10, 1U<<11, 1U<<12, 1U<<13, 1U<<14, 1U<<15,
 		1U<<16, 1U<<17, 1U<<18, 1U<<19, 1U<<20, 1U<<21, 1U<<22, 1U<<23
 	};
@@ -329,7 +329,7 @@ static int oss_close(snd_pcm_ioplug_t *io)
 	return 0;
 }
 
-static snd_pcm_ioplug_callback_t oss_playback_callback = {
+static const snd_pcm_ioplug_callback_t oss_playback_callback = {
 	.start = oss_start,
 	.stop = oss_stop,
 	.transfer = oss_write,
@@ -340,7 +340,7 @@ static snd_pcm_ioplug_callback_t oss_playback_callback = {
 	.drain = oss_drain,
 };
 
-static snd_pcm_ioplug_callback_t oss_capture_callback = {
+static const snd_pcm_ioplug_callback_t oss_capture_callback = {
 	.start = oss_start,
 	.stop = oss_stop,
 	.transfer = oss_read,

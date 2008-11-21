@@ -49,7 +49,7 @@ typedef struct {
 	short rbuf[RINGBUF_SIZE][5];
 } snd_pcm_vdownmix_t;
 
-static struct vdownmix_filter tap_filters[5] = {
+static const struct vdownmix_filter tap_filters[5] = {
 	{
 #ifdef I_AM_POWERFUL
 		18,
@@ -183,7 +183,7 @@ static struct vdownmix_filter tap_filters[5] = {
 	},
 };
 
-static int tap_index[5][2] = {
+static const int tap_index[5][2] = {
 	/* left */
 	{ 0, 1 },
 	/* right */
@@ -277,7 +277,7 @@ static int vdownmix_init(snd_pcm_extplug_t *ext)
 	return 0;
 }
 
-static snd_pcm_extplug_callback_t vdownmix_callback = {
+static const snd_pcm_extplug_callback_t vdownmix_callback = {
 	.transfer = vdownmix_transfer,
 	.init = vdownmix_init,
 	/* .dump = filr_dump, */

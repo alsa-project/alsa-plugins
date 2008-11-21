@@ -260,7 +260,7 @@ static void upmix_6_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			   6, size, SND_PCM_FORMAT_S16);
 }
 
-static upmixer_t do_upmix[6][2] = {
+static const upmixer_t do_upmix[6][2] = {
 	{ upmix_1_to_40, upmix_1_to_51 },
 	{ upmix_2_to_40, upmix_2_to_51 },
 	{ upmix_3_to_40, upmix_3_to_51 },
@@ -317,7 +317,7 @@ static int upmix_close(snd_pcm_extplug_t *ext)
 	return 0;
 }
 
-static snd_pcm_extplug_callback_t upmix_callback = {
+static const snd_pcm_extplug_callback_t upmix_callback = {
 	.transfer = upmix_transfer,
 	.init = upmix_init,
 	.close = upmix_close,
@@ -328,7 +328,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
 	snd_config_iterator_t i, next;
 	snd_pcm_upmix_t *mix;
 	snd_config_t *sconf = NULL;
-	static unsigned int chlist[2] = {4, 6};
+	static const unsigned int chlist[2] = {4, 6};
 	unsigned int channels = 0;
 	int delay = 10;
 	int err;

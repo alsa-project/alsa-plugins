@@ -40,7 +40,7 @@ typedef struct snd_ctl_oss {
 	unsigned int rec_item[SOUND_MIXER_NRDEVICES];
 } snd_ctl_oss_t;
 
-static const char *vol_devices[SOUND_MIXER_NRDEVICES] = {
+static const char *const vol_devices[SOUND_MIXER_NRDEVICES] = {
 	[SOUND_MIXER_VOLUME] =	"Master Playback Volume",
 	[SOUND_MIXER_BASS] =	"Tone Control - Bass",
 	[SOUND_MIXER_TREBLE] =	"Tone Control - Treble",
@@ -68,7 +68,7 @@ static const char *vol_devices[SOUND_MIXER_NRDEVICES] = {
 	[SOUND_MIXER_MONITOR] =	"Monitor Playback Volume",
 };
 
-static const char *rec_devices[SOUND_MIXER_NRDEVICES] = {
+static const char *const rec_devices[SOUND_MIXER_NRDEVICES] = {
 	[SOUND_MIXER_VOLUME] =	"Mix Capture Switch",
 	[SOUND_MIXER_SYNTH] =	"Synth Capture Switch",
 	[SOUND_MIXER_PCM] =	"PCM Capture Switch",
@@ -86,7 +86,7 @@ static const char *rec_devices[SOUND_MIXER_NRDEVICES] = {
 	[SOUND_MIXER_RADIO] =	"Radio Capture Switch",
 };	
 
-static const char *rec_items[SOUND_MIXER_NRDEVICES] = {
+static const char *const rec_items[SOUND_MIXER_NRDEVICES] = {
 	[SOUND_MIXER_VOLUME] =	"Mix",
 	[SOUND_MIXER_SYNTH] =	"Synth",
 	[SOUND_MIXER_PCM] =	"PCM",

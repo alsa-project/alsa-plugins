@@ -400,10 +400,10 @@ static int alsa_dsp_resume(snd_pcm_ioplug_t * io)
 static int alsa_dsp_configure_constraints(snd_pcm_alsa_dsp_t * alsa_dsp)
 {
 	snd_pcm_ioplug_t *io = &alsa_dsp->io;
-	static snd_pcm_access_t access_list[] = {
+	static const snd_pcm_access_t access_list[] = {
 		SND_PCM_ACCESS_RW_INTERLEAVED
 	};
-	const unsigned int formats[] = {
+	static const unsigned int formats[] = {
 		SND_PCM_FORMAT_U8,	/* DSP_AFMT_U8 */
 		SND_PCM_FORMAT_S16_LE,	/* DSP_AFMT_S16_LE */
 		SND_PCM_FORMAT_S16_BE,	/* DSP_AFMT_S16_BE */
@@ -413,15 +413,15 @@ static int alsa_dsp_configure_constraints(snd_pcm_alsa_dsp_t * alsa_dsp)
 		SND_PCM_FORMAT_A_LAW,	/* DSP_AFMT_ALAW */
 		SND_PCM_FORMAT_MU_LAW	/* DSP_AFMT_ULAW */
 	};
-	const unsigned int formats_recor[] = {
+	static const unsigned int formats_recor[] = {
 		SND_PCM_FORMAT_S16_LE,	/* DSP_AFMT_S16_LE */
 		SND_PCM_FORMAT_A_LAW,	/* DSP_AFMT_ALAW */
 		SND_PCM_FORMAT_MU_LAW	/* DSP_AFMT_ULAW */
 	};
-	static unsigned int bytes_list[] = {
+	static const unsigned int bytes_list[] = {
 		1U << 11, 1U << 12
 	};
-	static unsigned int bytes_list_rec_8bit[] = {
+	static const unsigned int bytes_list_rec_8bit[] = {
 		/* It must be multiple of 80... less than or equal to 800 */
 		80, 160, 240, 320, 400, 480, 560, 640, 720, 800
 	};
