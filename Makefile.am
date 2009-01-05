@@ -19,7 +19,7 @@ PPHDIR = pph
 endif
 
 SUBDIRS = oss mix $(PPHDIR) $(JACKDIR) $(PULSEDIR) $(SAMPLERATEDIR) $(A52DIR) $(LAVCRATEDIR) $(MAEMODIR) usb_stream doc
-EXTRA_DIST = gitcompile version COPYING.GPL
+EXTRA_DIST = gitcompile version COPYING.GPL m4/attributes.m4
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I m4
 
