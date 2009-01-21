@@ -17,8 +17,11 @@ endif
 if HAVE_PPH
 PPHDIR = pph
 endif
+if HAVE_SPEEXDSP
+SPEEXDIR = speex
+endif
 
-SUBDIRS = oss mix $(PPHDIR) $(JACKDIR) $(PULSEDIR) $(SAMPLERATEDIR) $(A52DIR) $(LAVCRATEDIR) $(MAEMODIR) usb_stream doc
+SUBDIRS = oss mix $(PPHDIR) $(JACKDIR) $(PULSEDIR) $(SAMPLERATEDIR) $(A52DIR) $(LAVCRATEDIR) $(MAEMODIR) $(SPEEXDIR) usb_stream doc
 EXTRA_DIST = gitcompile version COPYING.GPL m4/attributes.m4
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I m4
