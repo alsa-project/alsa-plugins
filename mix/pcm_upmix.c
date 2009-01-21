@@ -352,6 +352,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
 				return err;
 			}
 			delay = val;
+			continue;
 		}
 		if (strcmp(id, "channels") == 0) {
 			long val;
