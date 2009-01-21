@@ -12,6 +12,7 @@ AM_CFLAGS += @speex_CFLAGS@
 libasound_module_rate_speexrate_la_LIBADD += @speex_LIBS@
 else
 libasound_module_rate_speexrate_la_SOURCES += resample.c
+libasound_module_rate_speexrate_la_LIBADD += -lm
 endif
 
 install-exec-hook:
