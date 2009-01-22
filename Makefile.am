@@ -1,27 +1,26 @@
+SUBDIRS = oss mix usb_stream arcam-av doc
 if HAVE_JACK
-JACKDIR = jack
+SUBDIRS += jack
 endif
 if HAVE_PULSE
-PULSEDIR = pulse
+SUBDIRS += pulse
 endif
 if HAVE_SAMPLERATE
-SAMPLERATEDIR = rate
+SUBDIRS += rate
 endif
 if HAVE_AVCODEC
-A52DIR = a52
-LAVCRATEDIR = rate-lavc
+SUBDIRS += a52 rate-lavc
 endif
 if HAVE_MAEMO_PLUGIN
-MAEMODIR = maemo
+SUBDIRS += maemo
 endif
 if HAVE_PPH
-PPHDIR = pph
+SUBDIRS += pph
 endif
 if HAVE_SPEEXDSP
-SPEEXDIR = speex
+SUBDIRS += speex
 endif
 
-SUBDIRS = oss mix $(PPHDIR) $(JACKDIR) $(PULSEDIR) $(SAMPLERATEDIR) $(A52DIR) $(LAVCRATEDIR) $(MAEMODIR) $(SPEEXDIR) usb_stream arcam-av doc
 EXTRA_DIST = gitcompile version COPYING.GPL m4/attributes.m4
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I m4
