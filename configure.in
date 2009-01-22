@@ -167,6 +167,7 @@ AC_OUTPUT([
 	doc/Makefile
 	usb_stream/Makefile
 	speex/Makefile
+	arcam-av/Makefile
 ])
 
 dnl Show the build conditions
