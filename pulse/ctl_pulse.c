@@ -229,6 +229,11 @@ static snd_ctl_ext_key_t pulse_find_elem(snd_ctl_ext_t * ext,
 					 const snd_ctl_elem_id_t * id)
 {
 	const char *name;
+	unsigned int numid;
+
+	numid = snd_ctl_elem_id_get_numid(id);
+	if (numid > 0 && numid <= 4)
+		return numid - 1;
 
 	name = snd_ctl_elem_id_get_name(id);
 
