@@ -151,7 +151,21 @@ static snd_ctl_ext_key_t oss_find_elem(snd_ctl_ext_t *ext,
 {
 	snd_ctl_oss_t *oss = ext->private_data;
 	const char *name;
-	unsigned int i, key;
+	unsigned int i, key, numid;
+
+	numid = snd_ctl_elem_id_get_numid(id);
+	if (numid > 0) {
+		numid--;
+		if (numid < oss->num_vol_ctls)
+			return oss->vol_ctl[numid];
+		numid -= oss->num_vol_ctls;
+		if (oss->exclusive_input) {
+			if (!numid)
+				return OSS_KEY_CAPTURE_MUX;
+		} else if (numid < oss->num_rec_items)
+			return oss->rec_item[numid] |
+				OSS_KEY_CAPTURE_FLAG;
+	}
 
 	name = snd_ctl_elem_id_get_name(id);
 	if (! strcmp(name, "Capture Source")) {
