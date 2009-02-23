@@ -329,39 +329,34 @@ static void arcam_av_state_query(int fd)
 }
 
 
-static int arcam_av_state_shm_id = -1;
-
 arcam_av_state_t* arcam_av_state_attach(const char* port)
 {
 	arcam_av_state_t* state;
+	struct stat port_stat;
+	key_t ipc_key;
+	int shmid, shmflg;
+	struct shmid_ds shm_stat;
 
-	if (arcam_av_state_shm_id < 0) {
-		struct stat port_stat;
-		key_t ipc_key;
-		int shmflg;
-		struct shmid_ds shm_stat;
+	if (stat(port, &port_stat))
+		return NULL;
 
-		if (stat(port, &port_stat))
-			return NULL;
+	ipc_key = ftok(port, 'A');
+	if (ipc_key < 0)
+		return NULL;
 
-		ipc_key = ftok(port, 'A');
-		if (ipc_key < 0)
-			return NULL;
+	shmflg = IPC_CREAT | (port_stat.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO));
+	shmid = shmget(ipc_key, sizeof(arcam_av_state_t), shmflg);
+	if (shmid < 0)
+		return NULL;
 
-		shmflg = IPC_CREAT | (port_stat.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO));
-		arcam_av_state_shm_id = shmget(ipc_key, sizeof(arcam_av_state_t), shmflg);
-		if (arcam_av_state_shm_id < 0)
-			return NULL;
+	if (shmctl(shmid, IPC_STAT, &shm_stat))
+		return NULL;
 
-		if (shmctl(arcam_av_state_shm_id, IPC_STAT, &shm_stat))
-			return NULL;
+	shm_stat.shm_perm.uid = port_stat.st_uid;
+	shm_stat.shm_perm.gid = port_stat.st_gid;
+	shmctl(shmid, IPC_SET, &shm_stat);
 
-		shm_stat.shm_perm.uid = port_stat.st_uid;
-		shm_stat.shm_perm.gid = port_stat.st_gid;
-		shmctl(arcam_av_state_shm_id, IPC_SET, &shm_stat);
-	}
-
-	state = shmat(arcam_av_state_shm_id, NULL, 0);
+	state = shmat(shmid, NULL, 0);
 
 	return (state == (void*)-1) ? NULL : state;
 }
@@ -369,20 +364,7 @@ arcam_av_state_t* arcam_av_state_attach(const char* port)
 
 int arcam_av_state_detach(arcam_av_state_t* state)
 {
-	struct shmid_ds shm_stat;
-
-	if (shmdt(state))
-		return -1;
-
-	if (shmctl(arcam_av_state_shm_id, IPC_STAT, &shm_stat))
-		return -1;
-
-	if (!shm_stat.shm_nattch) {
-		shmctl(arcam_av_state_shm_id, IPC_RMID, NULL);
-		arcam_av_state_shm_id = -1;
-	}
-
-	return 0;
+	return shmdt(state);
 }
 
 
