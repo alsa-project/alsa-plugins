@@ -133,22 +133,28 @@ int arcam_av_send(int fd, arcam_av_cc_t command, unsigned char param1, unsigned 
 
 
 typedef struct arcam_av_state {
-	struct {
-		arcam_av_power_t		power;
-		unsigned char			volume;
-		arcam_av_mute_t			mute;
-		arcam_av_direct_t		direct;
-		arcam_av_source_t		source;
-		arcam_av_source_type_t		source_type;
-		arcam_av_stereo_decode_t	stereo_decode;
-		arcam_av_stereo_effect_t	stereo_effect;
-		arcam_av_multi_decode_t		multi_decode;
+	union {
+		struct {
+			unsigned char		power;
+			unsigned char		volume;
+			unsigned char		mute;
+			unsigned char		direct;
+			unsigned char		source;
+			unsigned char		source_type;
+			unsigned char		stereo_decode;
+			unsigned char		stereo_effect;
+			unsigned char		multi_decode;
+		};
+		unsigned char			state[9];
 	} zone1;
-	struct {
-		arcam_av_power_t		power;
-		unsigned char			volume;
-		arcam_av_mute_t			mute;
-		arcam_av_source_t		source;
+	union {
+		struct {
+			unsigned char		power;
+			unsigned char		volume;
+			unsigned char		mute;
+			unsigned char		source;
+		};
+		unsigned char			state[4];
 	} zone2;
 } arcam_av_state_t;
 

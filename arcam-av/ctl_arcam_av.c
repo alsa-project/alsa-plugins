@@ -816,81 +816,51 @@ static int arcam_av_write_enumerated(snd_ctl_ext_t *ext, snd_ctl_ext_key_t key, 
 static int arcam_av_read_event(snd_ctl_ext_t *ext, snd_ctl_elem_id_t *id, unsigned int *event_mask)
 {
 	snd_ctl_arcam_av_t *arcam_av = ext->private_data;
+	unsigned int elem;
+	int result = 0;
 
 	switch(arcam_av->zone) {
 	case ARCAM_AV_ZONE1:
-		if (arcam_av->local.zone1.power != arcam_av->global->zone1.power) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone1[0].name);
-			arcam_av->local.zone1.power = arcam_av->global->zone1.power;
-		} else if (arcam_av->local.zone1.volume != arcam_av->global->zone1.volume) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone1[1].name);
-			arcam_av->local.zone1.volume = arcam_av->global->zone1.volume;
-		} else if (arcam_av->local.zone1.mute != arcam_av->global->zone1.mute) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone1[2].name);
-			arcam_av->local.zone1.mute = arcam_av->global->zone1.mute;
-		} else if (arcam_av->local.zone1.direct != arcam_av->global->zone1.direct) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone1[3].name);
-			arcam_av->local.zone1.direct = arcam_av->global->zone1.direct;
-		} else if (arcam_av->local.zone1.source != arcam_av->global->zone1.source) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone1[4].name);
-			arcam_av->local.zone1.source = arcam_av->global->zone1.source;
-		} else if (arcam_av->local.zone1.source_type != arcam_av->global->zone1.source_type) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone1[5].name);
-			arcam_av->local.zone1.source_type = arcam_av->global->zone1.source_type;
-		} else if (arcam_av->local.zone1.stereo_decode != arcam_av->global->zone1.stereo_decode) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone1[6].name);
-			arcam_av->local.zone1.stereo_decode = arcam_av->global->zone1.stereo_decode;
-		} else if (arcam_av->local.zone1.stereo_effect != arcam_av->global->zone1.stereo_effect) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone1[7].name);
-			arcam_av->local.zone1.stereo_effect = arcam_av->global->zone1.stereo_effect;
-		} else if (arcam_av->local.zone1.multi_decode != arcam_av->global->zone1.multi_decode) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone1[8].name);
-			arcam_av->local.zone1.multi_decode = arcam_av->global->zone1.multi_decode;
-		} else {
-			char buf[10];
-			if (recv(arcam_av->ext.poll_fd, buf, sizeof(buf), 0) <= 0) {
-				close(arcam_av->ext.poll_fd);
-				arcam_av->ext.poll_fd = arcam_av_client(arcam_av->port);
-				if (arcam_av->ext.poll_fd > 0)
-					fcntl(arcam_av->ext.poll_fd, F_SETFL, O_NONBLOCK);
+		for (elem = 0; elem < ARRAY_SIZE(arcam_av_zone1); ++elem) {
+			if (arcam_av->local.zone1.state[elem] != arcam_av->global->zone1.state[elem]) {
+				snd_ctl_elem_id_set_name(id, arcam_av_zone1[elem].name);
+				snd_ctl_elem_id_set_numid(id, elem + 1);
+				arcam_av->local.zone1.state[elem] = arcam_av->global->zone1.state[elem];
+				result = 1;
+				break;
 			}
-
-			return -EAGAIN;
-		}
+		}		
 		break;
 
 	case ARCAM_AV_ZONE2:
-		if (arcam_av->local.zone2.power != arcam_av->global->zone2.power) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone2[0].name);
-			arcam_av->local.zone2.power = arcam_av->global->zone2.power;
-		} else if (arcam_av->local.zone2.volume != arcam_av->global->zone2.volume) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone2[1].name);
-			arcam_av->local.zone2.volume = arcam_av->global->zone2.volume;
-		} else if (arcam_av->local.zone2.mute != arcam_av->global->zone2.mute) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone2[2].name);
-			arcam_av->local.zone2.mute = arcam_av->global->zone2.mute;
-		} else if (arcam_av->local.zone2.source != arcam_av->global->zone2.source) {
-			snd_ctl_elem_id_set_name(id, arcam_av_zone2[3].name);
-			arcam_av->local.zone2.source = arcam_av->global->zone2.source;
-		} else {
-			char buf[10];
-			if (recv(arcam_av->ext.poll_fd, buf, sizeof(buf), 0) <= 0) {
-				close(arcam_av->ext.poll_fd);
-				arcam_av->ext.poll_fd = arcam_av_client(arcam_av->port);
-				if (arcam_av->ext.poll_fd > 0)
-					fcntl(arcam_av->ext.poll_fd, F_SETFL, O_NONBLOCK);
+		for (elem = 0; elem < ARRAY_SIZE(arcam_av_zone2); ++elem) {
+			if (arcam_av->local.zone2.state[elem] != arcam_av->global->zone2.state[elem]) {
+				snd_ctl_elem_id_set_name(id, arcam_av_zone2[elem].name);
+				snd_ctl_elem_id_set_numid(id, elem + 1);
+				arcam_av->local.zone2.state[elem] = arcam_av->global->zone2.state[elem];
+				result = 1;
+				break;
 			}
-
-			return -EAGAIN;
 		}
 		break;
 	}
 
-	snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
+	if (!result) {
+		char buf[10];
+		if (recv(arcam_av->ext.poll_fd, buf, sizeof(buf), 0) <= 0) {
+			close(arcam_av->ext.poll_fd);
+			arcam_av->ext.poll_fd = arcam_av_client(arcam_av->port);
+			if (arcam_av->ext.poll_fd > 0)
+				fcntl(arcam_av->ext.poll_fd, F_SETFL, O_NONBLOCK);
+		}
 
-	*event_mask = SND_CTL_EVENT_MASK_VALUE;
+		result = -EAGAIN;
+	} else {
+		snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
+		*event_mask = SND_CTL_EVENT_MASK_VALUE;
+	}
 
-	return 1;
+	return result;
 }
 
 
