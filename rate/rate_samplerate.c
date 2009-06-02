@@ -137,6 +137,20 @@ static void pcm_src_close(void *obj)
 	free(obj);
 }
 
+#if SND_PCM_RATE_PLUGIN_VERSION >= 0x010002
+static int get_supported_rates(void *obj, unsigned int *rate_min,
+			       unsigned int *rate_max)
+{
+	*rate_min = *rate_max = 0; /* both unlimited */
+	return 0;
+}
+
+static void dump(void *obj, snd_output_t *out)
+{
+	snd_output_printf(out, "Converter: libsamplerate\n");
+}
+#endif
+
 static snd_pcm_rate_ops_t pcm_src_ops = {
 	.close = pcm_src_close,
 	.init = pcm_src_init,
@@ -146,6 +160,11 @@ static snd_pcm_rate_ops_t pcm_src_ops = {
 	.convert_s16 = pcm_src_convert_s16,
 	.input_frames = input_frames,
 	.output_frames = output_frames,
+#if SND_PCM_RATE_PLUGIN_VERSION >= 0x010002
+	.version = SND_PCM_RATE_PLUGIN_VERSION,
+	.get_supported_rates = get_supported_rates,
+	.dump = dump,
+#endif
 };
 
 static int pcm_src_open(unsigned int version, void **objp,
@@ -153,18 +172,24 @@ static int pcm_src_open(unsigned int version, void **objp,
 {
 	struct rate_src *rate;
 
+#if SND_PCM_RATE_PLUGIN_VERSION < 0x010002
 	if (version != SND_PCM_RATE_PLUGIN_VERSION) {
 		fprintf(stderr, "Invalid rate plugin version %x\n", version);
 		return -EINVAL;
 	}
-
+#endif
 	rate = calloc(1, sizeof(*rate));
 	if (! rate)
 		return -ENOMEM;
 	rate->converter = type;
 
 	*objp = rate;
-	*ops = pcm_src_ops;
+#if SND_PCM_RATE_PLUGIN_VERSION >= 0x010002
+	if (version == 0x010001)
+		memcpy(ops, &pcm_src_ops, sizeof(snd_pcm_rate_old_ops_t));
+	else
+#endif
+		*ops = pcm_src_ops;
 	return 0;
 }
 
