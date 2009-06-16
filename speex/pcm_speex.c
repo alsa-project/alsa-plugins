@@ -1,5 +1,5 @@
 /*
- * Speex preprocess plugin
+ * Speex DSP plugin
  *
  * Copyright (c) 2009 by Takashi Iwai <tiwai@suse.de>
  *
@@ -21,12 +21,15 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 #include <speex/speex_preprocess.h>
+#include <speex/speex_echo.h>
 
-/* preprocessing parameters */
+/* DSP parameters */
 struct spx_parms {
 	int frames;
 	int denoise;
 	int agc;
+	int echo;
+	int filter_length;
 	float agc_level;
 	int dereverb;
 	float dereverb_decay;
@@ -38,7 +41,9 @@ typedef struct {
 	struct spx_parms parms;
 	/* instance and intermedate buffer */
 	SpeexPreprocessState *state;
+	SpeexEchoState *echo_state;
 	short *buf;
+	short *outbuf;
 	/* running states */
 	unsigned int filled;
 	unsigned int processed;
@@ -64,6 +69,18 @@ spx_transfer(snd_pcm_extplug_t *ext,
 	short *src = area_addr(src_areas, src_offset);
 	short *dst = area_addr(dst_areas, dst_offset);
 	unsigned int count = size;
+	short *databuf;
+
+	if (!spx->state && !spx->echo_state) {
+		/* no DSP processing */
+		memcpy(dst, src, count * 2);
+		return size;
+	}
+
+	if (spx->echo_state)
+		databuf = spx->outbuf;
+	else
+		databuf = spx->buf;
 
 	while (count > 0) {
 		unsigned int chunk;
@@ -72,14 +89,20 @@ spx_transfer(snd_pcm_extplug_t *ext,
 		else
 			chunk = count;
 		if (spx->processed)
-			memcpy(dst, spx->buf + spx->filled, chunk * 2);
+			memcpy(dst, databuf + spx->filled, chunk * 2);
 		else
 			memset(dst, 0, chunk * 2);
 		dst += chunk;
 		memcpy(spx->buf + spx->filled, src, chunk * 2);
 		spx->filled += chunk;
 		if (spx->filled == spx->parms.frames) {
-			speex_preprocess_run(spx->state, spx->buf);
+			if (spx->echo_state)
+				speex_echo_capture(spx->echo_state, spx->buf,
+						   spx->outbuf);
+			if (spx->state)
+				speex_preprocess_run(spx->state, databuf);
+			if (spx->echo_state)
+				speex_echo_playback(spx->echo_state, databuf);
 			spx->processed = 1;
 			spx->filled = 0;
 		}
@@ -94,6 +117,9 @@ static int spx_init(snd_pcm_extplug_t *ext)
 {
 	snd_pcm_speex_t *spx = (snd_pcm_speex_t *)ext;
 
+	spx->filled = 0;
+	spx->processed = 0;
+
 	if (!spx->buf) {
 		spx->buf = malloc(spx->parms.frames * 2);
 		if (!spx->buf)
@@ -101,12 +127,43 @@ static int spx_init(snd_pcm_extplug_t *ext)
 	}
 	memset(spx->buf, 0, spx->parms.frames * 2);
 
-	if (spx->state)
+	if (!spx->outbuf) {
+		spx->outbuf = malloc(spx->parms.frames * 2);
+		if (!spx->outbuf)
+			return -ENOMEM;
+	}
+	memset(spx->outbuf, 0, spx->parms.frames * 2);
+
+	if (spx->state) {
 		speex_preprocess_state_destroy(spx->state);
+		spx->state = NULL;
+	}
+	if (spx->echo_state) {
+		speex_echo_state_destroy(spx->echo_state);
+		spx->echo_state = NULL;
+	}
+
+	if (spx->parms.echo) {
+		spx->echo_state = speex_echo_state_init(spx->parms.frames,
+						spx->parms.filter_length);
+		if (!spx->echo_state)
+			return -EIO;
+		speex_echo_ctl(spx->echo_state, SPEEX_ECHO_SET_SAMPLING_RATE,
+			       &spx->ext.rate);
+	}
+
+	/* no preprocessor? */
+	if (!spx->parms.denoise && !spx->parms.agc && !spx->parms.dereverb)
+		return 0;
+
 	spx->state = speex_preprocess_state_init(spx->parms.frames,
 						 spx->ext.rate);
 	if (!spx->state)
 		return -EIO;
+	if (spx->echo_state)
+		speex_preprocess_ctl(spx->state,
+				     SPEEX_PREPROCESS_SET_ECHO_STATE,
+				     spx->echo_state);
 
 	speex_preprocess_ctl(spx->state, SPEEX_PREPROCESS_SET_DENOISE,
 			     &spx->parms.denoise);
@@ -120,18 +177,18 @@ static int spx_init(snd_pcm_extplug_t *ext)
 			     &spx->parms.dereverb_decay);
 	speex_preprocess_ctl(spx->state, SPEEX_PREPROCESS_SET_DEREVERB_LEVEL,
 			     &spx->parms.dereverb_level);
-
-	spx->filled = 0;
-	spx->processed = 0;
 	return 0;
 }
 
 static int spx_close(snd_pcm_extplug_t *ext)
 {
 	snd_pcm_speex_t *spx = (snd_pcm_speex_t *)ext;
+	free(spx->outbuf);
 	free(spx->buf);
 	if (spx->state)
 		speex_preprocess_state_destroy(spx->state);
+	if (spx->echo_state)
+		speex_echo_state_destroy(spx->echo_state);	
 	return 0;
 }
 
@@ -205,6 +262,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(speex)
 		.dereverb = 0,
 		.dereverb_decay = 0,
 		.dereverb_level = 0,
+		.echo = 0,
+		.filter_length = 256,
 	};
 
 	snd_config_for_each(i, next, conf) {
@@ -242,6 +301,13 @@ SND_PCM_PLUGIN_DEFINE_FUNC(speex)
 				     &parms.dereverb_level);
 		if (err)
 			goto ok;
+		err = get_bool_parm(n, id, "echo", &parms.echo);
+              	if (err)
+                	goto ok;
+		err = get_int_parm(n, id, "filter_length",
+				   &parms.filter_length);
+            	if (err)
+			goto ok;	
 		SNDERR("Unknown field %s", id);
 		err = -EINVAL;
 	ok:
@@ -259,7 +325,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(speex)
 		return -ENOMEM;
 
 	spx->ext.version = SND_PCM_EXTPLUG_VERSION;
-	spx->ext.name = "Speex Denoise Plugin";
+	spx->ext.name = "Speex DSP Plugin";
 	spx->ext.callback = &speex_callback;
 	spx->ext.private_data = spx;
 	spx->parms = parms;

@@ -12,7 +12,7 @@ using libspeex DSP API.  You can use the plugin with the plugin type
 
 Then record like
 
-	% arecord -fdat -c1 -Dplug:speex foo.wav
+	% arecord -fdat -c1 -Dplug:my_pcm foo.wav
 
 so that you'll get 48kHz mono stream with the denoising effect.
 
@@ -43,6 +43,15 @@ The following parameters can be set optionally:
 * dereverb
 
   A boolean value to enable/disable dereverb function.  Default is no.
+
+* echo
+
+  A boolean value to enable/disable echo-cancellation function.
+  Default is no.
+
+* filter_length
+
+  Number of samples of echo to cancel.  As default it's 256.
 
 For example, you can enable agc like
 
