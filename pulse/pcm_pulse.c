@@ -739,6 +739,30 @@ static int pulse_close(snd_pcm_ioplug_t * io)
 	return 0;
 }
 
+static int pulse_pause(snd_pcm_ioplug_t * io, int enable)
+{
+	snd_pcm_pulse_t *pcm = io->private_data;
+	int err = 0;
+
+	assert (pcm);
+	assert (pcm->p);
+
+	pa_threaded_mainloop_lock(pcm->p->mainloop);
+
+	if (pcm->stream) {
+		pa_operation *o;
+		o = pa_stream_cork(pcm->stream, enable, NULL, NULL);
+		if (o)
+			pa_operation_unref(o);
+		else
+			err = -EIO;
+	}
+
+	pa_threaded_mainloop_unlock(pcm->p->mainloop);
+
+	return err;
+}
+
 static const snd_pcm_ioplug_callback_t pulse_playback_callback = {
 	.start = pulse_start,
 	.stop = pulse_stop,
@@ -750,6 +774,7 @@ static const snd_pcm_ioplug_callback_t pulse_playback_callback = {
 	.prepare = pulse_prepare,
 	.hw_params = pulse_hw_params,
 	.close = pulse_close,
+	.pause = pulse_pause
 };
 
 
