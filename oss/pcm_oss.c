@@ -181,6 +181,7 @@ static int oss_hw_params(snd_pcm_ioplug_t *io,
 		fprintf(stderr, "*** OSS: invalid period size %d\n", (int)io->period_size);
 		return -EINVAL;
 	}
+	oss->periods = io->buffer_size / io->period_size;
 
  _retry:
 	tmp = oss->period_shift | (oss->periods << 16);
