@@ -38,7 +38,7 @@ int pulse_check_connection(snd_pulse_t * p)
 
 	state = pa_context_get_state(p->context);
 
-	if (state != PA_CONTEXT_READY)
+	if (!PA_CONTEXT_IS_GOOD(state))
 		return -EIO;
 
 	return 0;
@@ -127,8 +127,7 @@ int pulse_wait_stream_state(snd_pulse_t * p, pa_stream * stream,
 		if (state == target)
 			break;
 
-		if (state == PA_STREAM_FAILED ||
-		    state == PA_STREAM_TERMINATED)
+		if (!PA_STREAM_IS_GOOD(state))
 			return -EIO;
 
 		pa_threaded_mainloop_wait(p->mainloop);
