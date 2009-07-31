@@ -262,10 +262,17 @@ int pulse_connect(snd_pulse_t * p, const char *server)
 	if (err < 0)
 		goto error;
 
-	pa_threaded_mainloop_wait(p->mainloop);
+	for (;;) {
+		pa_context_state_t state = pa_context_get_state(p->context);
 
-	if (pa_context_get_state(p->context) != PA_CONTEXT_READY)
-		goto error;
+		if (!PA_CONTEXT_IS_GOOD(state))
+			goto error;
+
+		if (state == PA_CONTEXT_READY)
+			break;
+
+		pa_threaded_mainloop_wait(p->mainloop);
+	}
 
 	pa_threaded_mainloop_unlock(p->mainloop);
 
