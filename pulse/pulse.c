@@ -217,36 +217,29 @@ snd_pulse_t *pulse_new(void)
 	return p;
 
 fail:
-	if (p->mainloop)
-		pa_threaded_mainloop_stop(p->mainloop);
-
-	if (p->context)
-		pa_context_unref(p->context);
-
-	if (p->mainloop)
-		pa_threaded_mainloop_free(p->mainloop);
-
-	if (p->main_fd >= 0)
-		close(p->main_fd);
-
-	if (p->thread_fd >= 0)
-		close(p->thread_fd);
-
-	free(p);
+	pulse_free(p);
 
 	return NULL;
 }
 
 void pulse_free(snd_pulse_t * p)
 {
-	pa_threaded_mainloop_stop(p->mainloop);
+	if (p->mainloop)
+		pa_threaded_mainloop_stop(p->mainloop);
 
-	pa_context_disconnect(p->context);
-	pa_context_unref(p->context);
-	pa_threaded_mainloop_free(p->mainloop);
+	if (p->context) {
+		pa_context_disconnect(p->context);
+		pa_context_unref(p->context);
+	}
 
-	close(p->thread_fd);
-	close(p->main_fd);
+	if (p->mainloop)
+		pa_threaded_mainloop_free(p->mainloop);
+
+	if (p->thread_fd >= 0)
+		close(p->thread_fd);
+
+	if (p->main_fd >= 0)
+		close(p->main_fd);
 
 	free(p);
 }
