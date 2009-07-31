@@ -125,8 +125,9 @@ static void event_cb(pa_context * c, pa_subscription_event_type_t t,
 	pa_operation *o;
 
 	assert(ctl);
-	assert(ctl->p);
-	assert(ctl->p->context);
+
+	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+		return;
 
 	o = pa_context_get_sink_info_by_name(ctl->p->context, ctl->sink,
 					     sink_info_cb, ctl);
@@ -148,8 +149,9 @@ static int pulse_update_volume(snd_ctl_pulse_t * ctl)
 	pa_operation *o;
 
 	assert(ctl);
-	assert(ctl->p);
-	assert(ctl->p->context);
+
+	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+		return -EBADFD;
 
 	o = pa_context_get_sink_info_by_name(ctl->p->context, ctl->sink,
 					     sink_info_cb, ctl);
@@ -202,6 +204,9 @@ static int pulse_elem_list(snd_ctl_ext_t * ext, unsigned int offset,
 	snd_ctl_pulse_t *ctl = ext->private_data;
 
 	assert(ctl);
+
+	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+		return -EBADFD;
 
 	snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
 
@@ -260,7 +265,9 @@ static int pulse_get_attribute(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
 		return -EINVAL;
 
 	assert(ctl);
-	assert(ctl->p);
+
+	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
 
@@ -311,7 +318,9 @@ static int pulse_read_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
 	pa_cvolume *vol = NULL;
 
 	assert(ctl);
-	assert(ctl->p);
+
+	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
 
@@ -361,7 +370,9 @@ static int pulse_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
 	pa_cvolume *vol = NULL;
 
 	assert(ctl);
-	assert(ctl->p && ctl->p->context);
+
+	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
 
@@ -465,6 +476,9 @@ static void pulse_subscribe_events(snd_ctl_ext_t * ext, int subscribe)
 
 	assert(ctl);
 
+	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+		return;
+
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
 
 	ctl->subscribed = !!(subscribe & SND_CTL_EVENT_MASK_VALUE);
@@ -480,6 +494,9 @@ static int pulse_read_event(snd_ctl_ext_t * ext, snd_ctl_elem_id_t * id,
 	int err = -EAGAIN;
 
 	assert(ctl);
+
+	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
 
@@ -526,7 +543,9 @@ static int pulse_ctl_poll_revents(snd_ctl_ext_t * ext, struct pollfd *pfd,
 	int err = 0;
 
 	assert(ctl);
-	assert(ctl->p);
+
+	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
 

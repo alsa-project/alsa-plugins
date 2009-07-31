@@ -106,6 +106,9 @@ static int update_active(snd_pcm_pulse_t *pcm) {
 
 	assert(pcm);
 
+	if (!pcm->p)
+		return -EBADFD;
+
 	ret = check_active(pcm);
 	if (ret < 0)
 		return ret;
@@ -125,7 +128,9 @@ static int pulse_start(snd_pcm_ioplug_t * io)
 	int err = 0, err_o = 0, err_u = 0;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
@@ -174,7 +179,9 @@ static int pulse_stop(snd_pcm_ioplug_t * io)
 	int err = 0, err_o = 0, err_u = 0;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
@@ -224,7 +231,9 @@ static int pulse_drain(snd_pcm_ioplug_t * io)
 	int err = 0;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
@@ -259,7 +268,9 @@ static snd_pcm_sframes_t pulse_pointer(snd_pcm_ioplug_t * io)
 	snd_pcm_sframes_t ret = 0;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	if (io->state == SND_PCM_STATE_XRUN)
 		return -EPIPE;
@@ -269,7 +280,10 @@ static snd_pcm_sframes_t pulse_pointer(snd_pcm_ioplug_t * io)
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	assert(pcm->stream);
+	if (!pcm->stream) {
+		ret = -EBADFD;
+		goto finish;
+	}
 
 	ret = pulse_check_connection(pcm->p);
 	if (ret < 0)
@@ -305,11 +319,16 @@ static int pulse_delay(snd_pcm_ioplug_t * io, snd_pcm_sframes_t * delayp)
 	pa_usec_t lat = 0;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	assert(pcm->stream);
+	if (!pcm->stream) {
+		err = -EBADFD;
+		goto finish;
+	}
 
 	for (;;) {
 		err = pulse_check_connection(pcm->p);
@@ -354,11 +373,16 @@ static snd_pcm_sframes_t pulse_write(snd_pcm_ioplug_t * io,
 	snd_pcm_sframes_t ret = 0;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	assert(pcm->stream);
+	if (!pcm->stream) {
+		ret = -EBADFD;
+		goto finish;
+	}
 
 	ret = pulse_check_connection(pcm->p);
 	if (ret < 0)
@@ -409,11 +433,16 @@ static snd_pcm_sframes_t pulse_read(snd_pcm_ioplug_t * io,
 	snd_pcm_sframes_t ret = 0;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	assert(pcm->stream);
+	if (!pcm->stream) {
+		ret = -EBADFD;
+		goto finish;
+	}
 
 	ret = pulse_check_connection(pcm->p);
 	if (ret < 0)
@@ -480,7 +509,9 @@ static void stream_request_cb(pa_stream * p, size_t length, void *userdata)
 	snd_pcm_pulse_t *pcm = userdata;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return;
 
 	update_active(pcm);
 }
@@ -490,7 +521,9 @@ static void stream_underrun_cb(pa_stream * p, void *userdata)
 	snd_pcm_pulse_t *pcm = userdata;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return;
 
 	pcm->underrun = 1;
 }
@@ -499,7 +532,9 @@ static void stream_latency_cb(pa_stream *p, void *userdata) {
 	snd_pcm_pulse_t *pcm = userdata;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return;
 
 	pa_threaded_mainloop_signal(pcm->p->mainloop, 0);
 }
@@ -512,7 +547,9 @@ static int pulse_pcm_poll_revents(snd_pcm_ioplug_t * io,
 	snd_pcm_pulse_t *pcm = io->private_data;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
@@ -541,7 +578,9 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 	unsigned c, d;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
@@ -645,7 +684,9 @@ static int pulse_hw_params(snd_pcm_ioplug_t * io,
 	int err = 0;
 
 	assert(pcm);
-	assert(pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
@@ -745,7 +786,9 @@ static int pulse_pause(snd_pcm_ioplug_t * io, int enable)
 	int err = 0;
 
 	assert (pcm);
-	assert (pcm->p);
+
+	if (!pcm->p)
+		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
