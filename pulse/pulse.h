@@ -41,13 +41,9 @@ typedef struct snd_pulse {
 
 int pulse_check_connection(snd_pulse_t * p);
 
-void pulse_stream_state_cb(pa_stream * s, void *userdata);
-void pulse_stream_success_cb(pa_stream * s, int success, void *userdata);
 void pulse_context_success_cb(pa_context * c, int success, void *userdata);
 
 int pulse_wait_operation(snd_pulse_t * p, pa_operation * o);
-int pulse_wait_stream_state(snd_pulse_t * p, pa_stream * stream,
-			    pa_stream_state_t target);
 
 snd_pulse_t *pulse_new(void);
 void pulse_free(snd_pulse_t * p);

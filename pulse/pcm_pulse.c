@@ -49,6 +49,32 @@ typedef struct snd_pcm_pulse {
 	pa_buffer_attr buffer_attr;
 } snd_pcm_pulse_t;
 
+static int check_stream(snd_pcm_pulse_t *pcm)
+{
+	int err;
+	pa_stream_state_t state;
+
+	assert(pcm);
+
+	if (!pcm->p)
+		return -EBADFD;
+
+	err = pulse_check_connection(pcm->p);
+	if (err < 0)
+		return err;
+
+	if (!pcm->stream)
+		return -EBADFD;
+
+	state = pa_stream_get_state(pcm->stream);
+	if (!PA_STREAM_IS_GOOD(state))
+		return -EIO;
+
+	err = 0;
+
+	return err;
+}
+
 static int update_ptr(snd_pcm_pulse_t *pcm)
 {
 	size_t size;
@@ -118,7 +144,51 @@ static int update_active(snd_pcm_pulse_t *pcm) {
 	else
 		pulse_poll_deactivate(pcm->p);
 
+	return ret;
+}
+
+static int wait_stream_state(snd_pcm_pulse_t *pcm, pa_stream_state_t target)
+{
+	pa_stream_state_t state;
+
+	assert(pcm);
+
+	if (!pcm->p)
+		return -EBADFD;
+
+	for (;;) {
+		int err;
+
+		err = pulse_check_connection(pcm->p);
+		if (err < 0)
+			return err;
+
+		if (!pcm->stream)
+			return -EBADFD;
+
+		state = pa_stream_get_state(pcm->stream);
+		if (state == target)
+			break;
+
+		if (!PA_STREAM_IS_GOOD(state))
+			return -EIO;
+
+		pa_threaded_mainloop_wait(pcm->p->mainloop);
+	}
+
 	return 0;
+}
+
+static void stream_success_cb(pa_stream * p, int success, void *userdata)
+{
+	snd_pcm_pulse_t *pcm = userdata;
+
+	assert(pcm);
+
+	if (!pcm->p)
+		return;
+
+	pa_threaded_mainloop_signal(pcm->p->mainloop, 0);
 }
 
 static int pulse_start(snd_pcm_ioplug_t * io)
@@ -138,18 +208,13 @@ static int pulse_start(snd_pcm_ioplug_t * io)
 	if (err < 0)
 		goto finish;
 
-	if (pcm->stream == NULL)
-		goto finish;
-
-	o = pa_stream_cork(pcm->stream, 0, pulse_stream_success_cb,
-			   pcm->p);
+	o = pa_stream_cork(pcm->stream, 0, stream_success_cb, pcm);
 	if (!o) {
 		err = -EIO;
 		goto finish;
 	}
 
-	u = pa_stream_trigger(pcm->stream, pulse_stream_success_cb,
-			      pcm->p);
+	u = pa_stream_trigger(pcm->stream, stream_success_cb, pcm);
 
 	pcm->underrun = 0;
 	err_o = pulse_wait_operation(pcm->p, o);
@@ -164,7 +229,6 @@ static int pulse_start(snd_pcm_ioplug_t * io)
 		err = -EIO;
 		goto finish;
 	}
-
 
 finish:
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
@@ -189,18 +253,13 @@ static int pulse_stop(snd_pcm_ioplug_t * io)
 	if (err < 0)
 		goto finish;
 
-	if (pcm->stream == NULL)
-		goto finish;
-
-	o = pa_stream_cork(pcm->stream, 1, pulse_stream_success_cb,
-			   pcm->p);
+	o = pa_stream_cork(pcm->stream, 1, stream_success_cb, pcm);
 	if (!o) {
 		err = -EIO;
 		goto finish;
 	}
 
-	u = pa_stream_flush(pcm->stream, pulse_stream_success_cb,
-			    pcm->p);
+	u = pa_stream_flush(pcm->stream, stream_success_cb, pcm);
 	if (!u) {
 		pa_operation_unref(o);
 		err = -EIO;
@@ -241,7 +300,7 @@ static int pulse_drain(snd_pcm_ioplug_t * io)
 	if (err < 0)
 		goto finish;
 
-	o = pa_stream_drain(pcm->stream, pulse_stream_success_cb, pcm->p);
+	o = pa_stream_drain(pcm->stream, stream_success_cb, pcm);
 	if (!o) {
 		err = -EIO;
 		goto finish;
@@ -504,6 +563,23 @@ finish:
 	return ret;
 }
 
+static void stream_state_cb(pa_stream * p, void *userdata)
+{
+	snd_pcm_pulse_t *pcm = userdata;
+	pa_stream_state_t state;
+
+	assert(pcm);
+
+	if (!pcm->p)
+		return;
+
+	state = pa_stream_get_state(p);
+	if (!PA_STREAM_IS_GOOD(state))
+		pulse_poll_activate(pcm->p);
+
+	pa_threaded_mainloop_signal(pcm->p->mainloop, 0);
+}
+
 static void stream_request_cb(pa_stream * p, size_t length, void *userdata)
 {
 	snd_pcm_pulse_t *pcm = userdata;
@@ -586,8 +662,7 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 
 	if (pcm->stream) {
 		pa_stream_disconnect(pcm->stream);
-		pulse_wait_stream_state(pcm->p, pcm->stream,
-					PA_STREAM_TERMINATED);
+		wait_stream_state(pcm, PA_STREAM_TERMINATED);
 		pa_stream_unref(pcm->stream);
 		pcm->stream = NULL;
 	}
@@ -620,9 +695,7 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 		goto finish;
 	}
 
-	pa_stream_set_state_callback(pcm->stream, pulse_stream_state_cb,
-				     pcm->p);
-
+	pa_stream_set_state_callback(pcm->stream, stream_state_cb, pcm);
 	pa_stream_set_latency_update_callback(pcm->stream, stream_latency_cb, pcm);
 
 	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
@@ -659,8 +732,7 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 		goto finish;
 	}
 
-	err =
-	    pulse_wait_stream_state(pcm->p, pcm->stream, PA_STREAM_READY);
+	err = wait_stream_state(pcm, PA_STREAM_READY);
 	if (err < 0) {
 		SNDERR("PulseAudio: Unable to create stream: %s\n", pa_strerror(pa_context_errno(pcm->p->context)));
 		pa_stream_unref(pcm->stream);

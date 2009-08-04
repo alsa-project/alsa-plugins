@@ -44,26 +44,6 @@ int pulse_check_connection(snd_pulse_t * p)
 	return 0;
 }
 
-void pulse_stream_state_cb(pa_stream * s, void *userdata)
-{
-	snd_pulse_t *p = userdata;
-
-	assert(s);
-	assert(p);
-
-	pa_threaded_mainloop_signal(p->mainloop, 0);
-}
-
-void pulse_stream_success_cb(pa_stream * s, int success, void *userdata)
-{
-	snd_pulse_t *p = userdata;
-
-	assert(s);
-	assert(p);
-
-	pa_threaded_mainloop_signal(p->mainloop, 0);
-}
-
 void pulse_context_success_cb(pa_context * c, int success, void *userdata)
 {
 	snd_pulse_t *p = userdata;
@@ -94,41 +74,6 @@ int pulse_wait_operation(snd_pulse_t * p, pa_operation * o)
 
 		if (pa_operation_get_state(o) != PA_OPERATION_RUNNING)
 			break;
-
-		pa_threaded_mainloop_wait(p->mainloop);
-	}
-
-	return 0;
-}
-
-int pulse_wait_stream_state(snd_pulse_t * p, pa_stream * stream,
-			    pa_stream_state_t target)
-{
-	pa_stream_state_t state;
-
-	assert(p);
-	assert(stream);
-
-	if (p->state != PULSE_STATE_READY)
-		return -EBADFD;
-
-	if (!p->mainloop)
-		return -EBADFD;
-
-	for (;;) {
-		int err;
-
-		err = pulse_check_connection(p);
-		if (err < 0)
-			return err;
-
-		state = pa_stream_get_state(stream);
-
-		if (state == target)
-			break;
-
-		if (!PA_STREAM_IS_GOOD(state))
-			return -EIO;
 
 		pa_threaded_mainloop_wait(p->mainloop);
 	}
