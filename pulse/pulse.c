@@ -59,12 +59,6 @@ int pulse_wait_operation(snd_pulse_t * p, pa_operation * o)
 	assert(p);
 	assert(o);
 
-	if (p->state != PULSE_STATE_READY)
-		return -EBADFD;
-
-	if (!p->mainloop)
-		return -EBADFD;
-
 	for (;;) {
 		int err;
 
@@ -123,8 +117,6 @@ snd_pulse_t *pulse_new(void)
 
 	if (!p)
 		return NULL;
-
-	p->state = PULSE_STATE_INIT;
 
 	if (pipe(fd)) {
 		free(p);
@@ -192,13 +184,15 @@ void pulse_free(snd_pulse_t * p)
 int pulse_connect(snd_pulse_t * p, const char *server)
 {
 	int err;
+	pa_context_state_t state;
 
 	assert(p);
 
 	if (!p->context || !p->mainloop)
 		return -EBADFD;
 
-	if (p->state != PULSE_STATE_INIT)
+	state = pa_context_get_state(p->context);
+	if (state != PA_CONTEXT_UNCONNECTED)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(p->mainloop);
@@ -220,8 +214,6 @@ int pulse_connect(snd_pulse_t * p, const char *server)
 	}
 
 	pa_threaded_mainloop_unlock(p->mainloop);
-
-	p->state = PULSE_STATE_READY;
 
 	return 0;
 

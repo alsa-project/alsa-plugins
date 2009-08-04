@@ -31,12 +31,6 @@ typedef struct snd_pulse {
 	pa_context *context;
 
 	int thread_fd, main_fd;
-
-	enum {
-		PULSE_STATE_INIT,
-		PULSE_STATE_READY,
-	} state;
-
 } snd_pulse_t;
 
 int pulse_check_connection(snd_pulse_t * p);
