@@ -135,11 +135,15 @@ static int update_active(snd_pcm_pulse_t *pcm) {
 	if (!pcm->p)
 		return -EBADFD;
 
-	ret = check_active(pcm);
+	ret = check_stream(pcm);
 	if (ret < 0)
-		return ret;
+		goto finish;
 
-	if (ret > 0)
+	ret = check_active(pcm);
+
+finish:
+
+	if (ret != 0) /* On error signal the caller, too */
 		pulse_poll_activate(pcm->p);
 	else
 		pulse_poll_deactivate(pcm->p);
@@ -199,12 +203,12 @@ static int pulse_start(snd_pcm_ioplug_t * io)
 
 	assert(pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	err = pulse_check_connection(pcm->p);
+	err = check_stream(pcm);
 	if (err < 0)
 		goto finish;
 
@@ -244,12 +248,12 @@ static int pulse_stop(snd_pcm_ioplug_t * io)
 
 	assert(pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	err = pulse_check_connection(pcm->p);
+	err = check_stream(pcm);
 	if (err < 0)
 		goto finish;
 
@@ -291,12 +295,12 @@ static int pulse_drain(snd_pcm_ioplug_t * io)
 
 	assert(pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	err = pulse_check_connection(pcm->p);
+	err = check_stream(pcm);
 	if (err < 0)
 		goto finish;
 
@@ -328,7 +332,7 @@ static snd_pcm_sframes_t pulse_pointer(snd_pcm_ioplug_t * io)
 
 	assert(pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	if (io->state == SND_PCM_STATE_XRUN)
@@ -339,12 +343,7 @@ static snd_pcm_sframes_t pulse_pointer(snd_pcm_ioplug_t * io)
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	if (!pcm->stream) {
-		ret = -EBADFD;
-		goto finish;
-	}
-
-	ret = pulse_check_connection(pcm->p);
+	ret = check_stream(pcm);
 	if (ret < 0)
 		goto finish;
 
@@ -379,18 +378,13 @@ static int pulse_delay(snd_pcm_ioplug_t * io, snd_pcm_sframes_t * delayp)
 
 	assert(pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	if (!pcm->stream) {
-		err = -EBADFD;
-		goto finish;
-	}
-
 	for (;;) {
-		err = pulse_check_connection(pcm->p);
+		err = check_stream(pcm);
 		if (err < 0)
 			goto finish;
 
@@ -433,17 +427,12 @@ static snd_pcm_sframes_t pulse_write(snd_pcm_ioplug_t * io,
 
 	assert(pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	if (!pcm->stream) {
-		ret = -EBADFD;
-		goto finish;
-	}
-
-	ret = pulse_check_connection(pcm->p);
+	ret = check_stream(pcm);
 	if (ret < 0)
 		goto finish;
 
@@ -493,17 +482,12 @@ static snd_pcm_sframes_t pulse_read(snd_pcm_ioplug_t * io,
 
 	assert(pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	if (!pcm->stream) {
-		ret = -EBADFD;
-		goto finish;
-	}
-
-	ret = pulse_check_connection(pcm->p);
+	ret = check_stream(pcm);
 	if (ret < 0)
 		goto finish;
 
@@ -624,13 +608,16 @@ static int pulse_pcm_poll_revents(snd_pcm_ioplug_t * io,
 
 	assert(pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	err = check_active(pcm);
+	err = check_stream(pcm);
+	if (err < 0)
+		goto finish;
 
+	err = check_active(pcm);
 	if (err < 0)
 		goto finish;
 
@@ -655,7 +642,7 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 
 	assert(pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
@@ -757,7 +744,7 @@ static int pulse_hw_params(snd_pcm_ioplug_t * io,
 
 	assert(pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
@@ -856,23 +843,26 @@ static int pulse_pause(snd_pcm_ioplug_t * io, int enable)
 {
 	snd_pcm_pulse_t *pcm = io->private_data;
 	int err = 0;
+	pa_operation *o;
 
 	assert (pcm);
 
-	if (!pcm->p)
+	if (!pcm->p || !pcm->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(pcm->p->mainloop);
 
-	if (pcm->stream) {
-		pa_operation *o;
-		o = pa_stream_cork(pcm->stream, enable, NULL, NULL);
-		if (o)
-			pa_operation_unref(o);
-		else
-			err = -EIO;
-	}
+	err = check_stream(pcm);
+	if (err < 0)
+		goto finish;
 
+	o = pa_stream_cork(pcm->stream, enable, NULL, NULL);
+	if (o)
+		pa_operation_unref(o);
+	else
+		err = -EIO;
+
+finish:
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	return err;

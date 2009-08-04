@@ -150,8 +150,12 @@ static int pulse_update_volume(snd_ctl_pulse_t * ctl)
 
 	assert(ctl);
 
-	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+	if (!ctl->p)
 		return -EBADFD;
+
+	err = pulse_check_connection(ctl->p);
+	if (err < 0)
+		return err;
 
 	o = pa_context_get_sink_info_by_name(ctl->p->context, ctl->sink,
 					     sink_info_cb, ctl);
@@ -182,17 +186,27 @@ static int pulse_update_volume(snd_ctl_pulse_t * ctl)
 static int pulse_elem_count(snd_ctl_ext_t * ext)
 {
 	snd_ctl_pulse_t *ctl = ext->private_data;
-	int count = 0;
+	int count = 0, err;
 
 	assert(ctl);
 
+	if (!ctl->p || !ctl->p->mainloop)
+		return -EBADFD;
+
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
+
+	err = pulse_check_connection(ctl->p);
+	if (err < 0) {
+		count = err;
+		goto finish;
+	}
 
 	if (ctl->source)
 		count += 2;
 	if (ctl->sink)
 		count += 2;
 
+finish:
 	pa_threaded_mainloop_unlock(ctl->p->mainloop);
 
 	return count;
@@ -202,15 +216,20 @@ static int pulse_elem_list(snd_ctl_ext_t * ext, unsigned int offset,
 			   snd_ctl_elem_id_t * id)
 {
 	snd_ctl_pulse_t *ctl = ext->private_data;
+	int err;
 
 	assert(ctl);
 
-	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+	if (!ctl->p || !ctl->p->mainloop)
 		return -EBADFD;
 
 	snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
+
+	err = pulse_check_connection(ctl->p);
+	if (err < 0)
+		goto finish;
 
 	if (ctl->source) {
 		if (offset == 0)
@@ -220,14 +239,19 @@ static int pulse_elem_list(snd_ctl_ext_t * ext, unsigned int offset,
 	} else
 		offset += 2;
 
+	err = 0;
+
+finish:
 	pa_threaded_mainloop_unlock(ctl->p->mainloop);
 
-	if (offset == 2)
-		snd_ctl_elem_id_set_name(id, SINK_VOL_NAME);
-	else if (offset == 3)
-		snd_ctl_elem_id_set_name(id, SINK_MUTE_NAME);
+	if (err >= 0) {
+		if (offset == 2)
+			snd_ctl_elem_id_set_name(id, SINK_VOL_NAME);
+		else if (offset == 3)
+			snd_ctl_elem_id_set_name(id, SINK_MUTE_NAME);
+	}
 
-	return 0;
+	return err;
 }
 
 static snd_ctl_ext_key_t pulse_find_elem(snd_ctl_ext_t * ext,
@@ -266,7 +290,7 @@ static int pulse_get_attribute(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
 
 	assert(ctl);
 
-	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+	if (!ctl->p || !ctl->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
@@ -319,7 +343,7 @@ static int pulse_read_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
 
 	assert(ctl);
 
-	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+	if (!ctl->p || !ctl->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
@@ -371,7 +395,7 @@ static int pulse_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
 
 	assert(ctl);
 
-	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+	if (!ctl->p || !ctl->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
@@ -476,7 +500,7 @@ static void pulse_subscribe_events(snd_ctl_ext_t * ext, int subscribe)
 
 	assert(ctl);
 
-	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+	if (!ctl->p || !ctl->p->mainloop)
 		return;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
@@ -491,17 +515,23 @@ static int pulse_read_event(snd_ctl_ext_t * ext, snd_ctl_elem_id_t * id,
 {
 	snd_ctl_pulse_t *ctl = ext->private_data;
 	int offset;
-	int err = -EAGAIN;
+	int err;
 
 	assert(ctl);
 
-	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+	if (!ctl->p || !ctl->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
 
-	if (!ctl->updated || !ctl->subscribed)
+	err = pulse_check_connection(ctl->p);
+	if (err < 0)
 		goto finish;
+
+	if (!ctl->updated || !ctl->subscribed) {
+		err = -EAGAIN;
+		goto finish;
+	}
 
 	if (ctl->source)
 		offset = 2;
@@ -540,19 +570,27 @@ static int pulse_ctl_poll_revents(snd_ctl_ext_t * ext, struct pollfd *pfd,
 				  unsigned short *revents)
 {
 	snd_ctl_pulse_t *ctl = ext->private_data;
-	int err = 0;
+	int err;
 
 	assert(ctl);
 
-	if (!ctl->p || !ctl->p->mainloop || !ctl->p->context)
+	if (!ctl->p || !ctl->p->mainloop)
 		return -EBADFD;
 
 	pa_threaded_mainloop_lock(ctl->p->mainloop);
+
+	err = pulse_check_connection(ctl->p);
+	if (err < 0)
+		goto finish;
 
 	if (ctl->updated)
 		*revents = POLLIN;
 	else
 		*revents = 0;
+
+	err = 0;
+
+finish:
 
 	pa_threaded_mainloop_unlock(ctl->p->mainloop);
 
