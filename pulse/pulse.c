@@ -77,10 +77,17 @@ int pulse_wait_operation(snd_pulse_t * p, pa_operation * o)
 
 static void context_state_cb(pa_context * c, void *userdata)
 {
+	pa_context_state_t state;
 	snd_pulse_t *p = userdata;
 	assert(c);
 
-	switch (pa_context_get_state(c)) {
+	state = pa_context_get_state(c);
+
+	/* When we get disconnected, tell the process */
+	if (!PA_CONTEXT_IS_GOOD(state))
+		pulse_poll_activate(p);
+
+	switch (state) {
 	case PA_CONTEXT_READY:
 	case PA_CONTEXT_TERMINATED:
 	case PA_CONTEXT_FAILED:
