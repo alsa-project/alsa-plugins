@@ -819,21 +819,22 @@ static int pulse_close(snd_pcm_ioplug_t * io)
 
 	assert(pcm);
 
-	pa_threaded_mainloop_lock(pcm->p->mainloop);
+	if (pcm->p && pcm->p->mainloop) {
 
-	if (pcm->stream) {
-		pa_stream_disconnect(pcm->stream);
-		pa_stream_unref(pcm->stream);
+		pa_threaded_mainloop_lock(pcm->p->mainloop);
+
+		if (pcm->stream) {
+			pa_stream_disconnect(pcm->stream);
+			pa_stream_unref(pcm->stream);
+		}
+
+		pa_threaded_mainloop_unlock(pcm->p->mainloop);
 	}
-
-	pa_threaded_mainloop_unlock(pcm->p->mainloop);
 
 	if (pcm->p)
 		pulse_free(pcm->p);
 
-	if (pcm->device)
-		free(pcm->device);
-
+	free(pcm->device);
 	free(pcm);
 
 	return 0;

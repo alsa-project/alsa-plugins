@@ -606,11 +606,8 @@ static void pulse_close(snd_ctl_ext_t * ext)
 	if (ctl->p)
 		pulse_free(ctl->p);
 
-	if (ctl->source)
-		free(ctl->source);
-	if (ctl->sink)
-		free(ctl->sink);
-
+	free(ctl->source);
+	free(ctl->sink);
 	free(ctl);
 }
 
