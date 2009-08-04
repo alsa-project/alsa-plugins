@@ -61,15 +61,7 @@ conf_pulse_hook_load_if_running(snd_config_t * root, snd_config_t * config,
 		goto out;
 
 	do {
-		err = pa_mainloop_prepare(loop, -1);
-		if (err < 0)
-			goto out;
-
-		err = pa_mainloop_poll(loop);
-		if (err < 0)
-			goto out;
-
-		err = pa_mainloop_dispatch(loop);
+		err = pa_mainloop_iterate(loop, 1, NULL);
 		if (err < 0)
 			goto out;
 
