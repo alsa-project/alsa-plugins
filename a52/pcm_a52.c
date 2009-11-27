@@ -170,7 +170,13 @@ static int fill_data(snd_pcm_ioplug_t *io,
 		static unsigned int ch_index[3][6] = {
 			{ 0, 1 },
 			{ 0, 1, 2, 3 },
+#if LIBAVCODEC_VERSION_MAJOR > 52 || (LIBAVCODEC_VERSION_MAJOR == 52 && LIBAVCODEC_VERSION_MINOR >= 26)
+			/* current libavcodec expects SMPTE order */
+			{ 0, 1, 4, 5, 2, 3 },
+#else
+			/* libavcodec older than r18540 expects A52 order */
 			{ 0, 4, 1, 2, 3, 5 },
+#endif
 		};
 		/* flatten copy to n-channel interleaved */
 		dst_step = io->channels;
