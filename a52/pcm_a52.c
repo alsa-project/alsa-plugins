@@ -436,6 +436,21 @@ static int a52_prepare(snd_pcm_ioplug_t *io)
 	rec->avctx->bit_rate = rec->bitrate * 1000;
 	rec->avctx->sample_rate = io->rate;
 	rec->avctx->channels = io->channels;
+#if LIBAVCODEC_VERSION_MAJOR > 52 || (LIBAVCODEC_VERSION_MAJOR == 52 && LIBAVCODEC_VERSION_MINOR >= 3)
+	switch (io->channels) {
+	case 2:
+		rec->avctx->channel_layout = CH_LAYOUT_STEREO;
+		break;
+	case 4:
+		rec->avctx->channel_layout = CH_LAYOUT_QUAD;
+		break;
+	case 6:
+		rec->avctx->channel_layout = CH_LAYOUT_5POINT1;
+		break;
+	default:
+		break;
+	}
+#endif
 
 	if (avcodec_open(rec->avctx, rec->codec) < 0)
 		return -EINVAL;
