@@ -128,6 +128,20 @@ static void average_copy(const snd_pcm_channel_area_t *dst_areas,
 	}
 }
 
+static void upmix_1_to_71(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
+			  const snd_pcm_channel_area_t *dst_areas,
+			  snd_pcm_uframes_t dst_offset,
+			  const snd_pcm_channel_area_t *src_areas,
+			  snd_pcm_uframes_t src_offset,
+			  snd_pcm_uframes_t size)
+{
+	int i;
+	for (i = 0; i < 8; i++)
+		snd_pcm_area_copy(dst_areas + i, dst_offset,
+				  src_areas, src_offset,
+				  size, SND_PCM_FORMAT_S16);
+}
+
 static void upmix_1_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			  const snd_pcm_channel_area_t *dst_areas,
 			  snd_pcm_uframes_t dst_offset,
@@ -154,6 +168,24 @@ static void upmix_1_to_40(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 		snd_pcm_area_copy(dst_areas + i, dst_offset,
 				  src_areas, src_offset,
 				  size, SND_PCM_FORMAT_S16);
+}
+
+static void upmix_2_to_71(snd_pcm_upmix_t *mix,
+			  const snd_pcm_channel_area_t *dst_areas,
+			  snd_pcm_uframes_t dst_offset,
+			  const snd_pcm_channel_area_t *src_areas,
+			  snd_pcm_uframes_t src_offset,
+			  snd_pcm_uframes_t size)
+{
+	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
+			   2, size, SND_PCM_FORMAT_S16);
+	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset,
+		     size);
+	average_copy(dst_areas + 4, dst_offset, src_areas, src_offset,
+		     2, size);
+	snd_pcm_areas_copy(dst_areas + 6, dst_offset, src_areas, src_offset,
+			   2, size, SND_PCM_FORMAT_S16);
+	
 }
 
 static void upmix_2_to_51(snd_pcm_upmix_t *mix,
@@ -260,13 +292,26 @@ static void upmix_6_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			   6, size, SND_PCM_FORMAT_S16);
 }
 
-static const upmixer_t do_upmix[6][2] = {
-	{ upmix_1_to_40, upmix_1_to_51 },
-	{ upmix_2_to_40, upmix_2_to_51 },
-	{ upmix_3_to_40, upmix_3_to_51 },
-	{ upmix_4_to_40, upmix_4_to_51 },
-	{ upmix_4_to_40, upmix_5_to_51 },
-	{ upmix_4_to_40, upmix_6_to_51 },
+static void upmix_8_to_71(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
+			  const snd_pcm_channel_area_t *dst_areas,
+			  snd_pcm_uframes_t dst_offset,
+			  const snd_pcm_channel_area_t *src_areas,
+			  snd_pcm_uframes_t src_offset,
+			  snd_pcm_uframes_t size)
+{
+	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
+			   8, size, SND_PCM_FORMAT_S16);
+}
+
+static const upmixer_t do_upmix[8][3] = {
+	{ upmix_1_to_40, upmix_1_to_51, upmix_1_to_71 },
+	{ upmix_2_to_40, upmix_2_to_51, upmix_2_to_71 },
+	{ upmix_3_to_40, upmix_3_to_51, upmix_3_to_51 },
+	{ upmix_4_to_40, upmix_4_to_51, upmix_4_to_51 },
+	{ upmix_4_to_40, upmix_5_to_51, upmix_5_to_51 },
+	{ upmix_4_to_40, upmix_6_to_51, upmix_6_to_51 },
+	{ upmix_4_to_40, upmix_6_to_51, upmix_6_to_51 },
+	{ upmix_4_to_40, upmix_6_to_51, upmix_8_to_71 },
 };
 
 static snd_pcm_sframes_t
@@ -288,9 +333,18 @@ static int upmix_init(snd_pcm_extplug_t *ext)
 	snd_pcm_upmix_t *mix = (snd_pcm_upmix_t *)ext;
 	int ctype, stype;
 
-	stype = (ext->slave_channels == 6) ? 1 : 0;
+	switch (ext->slave_channels) {
+		case	6:
+			stype = 1;
+			break;
+		case 8:
+			stype = 2;
+			break;
+		default:
+			stype = 0;
+	}
 	ctype = ext->channels - 1;
-	if (ctype < 0 || ctype > 5) {
+	if (ctype < 0 || ctype > 7) {
 		SNDERR("Invalid channel numbers for upmix: %d", ctype + 1);
 		return -EINVAL;
 	}
@@ -328,7 +382,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
 	snd_config_iterator_t i, next;
 	snd_pcm_upmix_t *mix;
 	snd_config_t *sconf = NULL;
-	static const unsigned int chlist[2] = {4, 6};
+	static const unsigned int chlist[3] = {4, 6, 8};
 	unsigned int channels = 0;
 	int delay = 10;
 	int err;
@@ -362,8 +416,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
 				return err;
 			}
 			channels = val;
-			if (channels != 4 && channels != 6 && channels != 0) {
-				SNDERR("channels must be 4, 6 or 0");
+			if (channels != 4 && channels != 6 && channels != 0 && channels != 8) {
+				SNDERR("channels must be 4, 6, 8 or 0");
 				return -EINVAL;
 			}
 			continue;
@@ -399,7 +453,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
 
 	snd_pcm_extplug_set_param_minmax(&mix->ext,
 					 SND_PCM_EXTPLUG_HW_CHANNELS,
-					 1, 6);
+					 1, 8);
 	if (channels)
 		snd_pcm_extplug_set_slave_param_minmax(&mix->ext,
 						       SND_PCM_EXTPLUG_HW_CHANNELS,
@@ -407,7 +461,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
 	else
 		snd_pcm_extplug_set_slave_param_list(&mix->ext,
 						     SND_PCM_EXTPLUG_HW_CHANNELS,
-						     2, chlist);
+						     3, chlist);
 	snd_pcm_extplug_set_param(&mix->ext, SND_PCM_EXTPLUG_HW_FORMAT,
 				  SND_PCM_FORMAT_S16);
 	snd_pcm_extplug_set_slave_param(&mix->ext, SND_PCM_EXTPLUG_HW_FORMAT,
