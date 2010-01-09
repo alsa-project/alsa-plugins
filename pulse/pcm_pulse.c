@@ -90,6 +90,10 @@ static int update_ptr(snd_pcm_pulse_t *pcm)
 	if (pcm->io.stream == SND_PCM_STREAM_CAPTURE)
 		size -= pcm->offset;
 
+	/* Prevent accidental overrun of the fake ringbuffer */
+	if (size >= pcm->buffer_attr.tlength)
+		size = pcm->buffer_attr.tlength-1;
+
 	if (size > pcm->last_size) {
 		pcm->ptr += size - pcm->last_size;
 		pcm->ptr %= pcm->buffer_attr.tlength;
@@ -424,6 +428,7 @@ static snd_pcm_sframes_t pulse_write(snd_pcm_ioplug_t * io,
 	snd_pcm_pulse_t *pcm = io->private_data;
 	const char *buf;
 	snd_pcm_sframes_t ret = 0;
+	size_t writebytes;
 
 	assert(pcm);
 
@@ -445,13 +450,15 @@ static snd_pcm_sframes_t pulse_write(snd_pcm_ioplug_t * io,
 	    (char *) areas->addr + (areas->first +
 				    areas->step * offset) / 8;
 
-	ret = pa_stream_write(pcm->stream, buf, size * pcm->frame_size, NULL, 0, 0);
+	writebytes = size * pcm->frame_size;
+	ret = pa_stream_write(pcm->stream, buf, writebytes, NULL, 0, 0);
 	if (ret < 0) {
 		ret = -EIO;
 		goto finish;
 	}
 
 	/* Make sure the buffer pointer is in sync */
+	pcm->last_size -= writebytes;
 	ret = update_ptr(pcm);
 	if (ret < 0)
 		goto finish;
@@ -528,6 +535,7 @@ static snd_pcm_sframes_t pulse_read(snd_pcm_ioplug_t * io,
 
 		dst_buf = (char *) dst_buf + frag_length;
 		remain_size -= frag_length;
+		pcm->last_size -= frag_length;
 	}
 
 	/* Make sure the buffer pointer is in sync */
@@ -729,6 +737,11 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 
 	pcm->offset = 0;
 	pcm->underrun = 0;
+
+	/* Reset fake ringbuffer */
+	pcm->last_size = 0;
+	pcm->ptr = 0;
+	update_ptr(pcm);
 
       finish:
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
