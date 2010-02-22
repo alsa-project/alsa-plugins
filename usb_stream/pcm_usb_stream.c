@@ -48,6 +48,8 @@
 #define VDBG(f, ...)
 #endif
 
+#define FRAME_SIZE 6
+
 #define LCARD 32
 struct user_usb_stream {
 	char			card[LCARD];
@@ -70,6 +72,8 @@ typedef struct {
 	unsigned		periods_done;
 
 	unsigned 		channels;
+	snd_pcm_uframes_t	period_size;
+	unsigned int		rate;
 } snd_pcm_us_t;
 
 static struct user_usb_stream *uus;
@@ -177,7 +181,7 @@ static int snd_pcm_us_prepare(snd_pcm_ioplug_t *io)
 	VDBG("");
 
 	us_cfg.version = USB_STREAM_INTERFACE_VERSION;
-	us_cfg.frame_size = 6;
+	us_cfg.frame_size = FRAME_SIZE;
 	us_cfg.sample_rate = io->rate;
 	us_cfg.period_frames = io->period_size;
 
@@ -373,6 +377,10 @@ static int us_set_hw_constraint(snd_pcm_us_t *us)
 	};
 
 	int err;
+	unsigned int rate_min = us->rate ? us->rate : 44100,
+		rate_max = us->rate ? us->rate : 96000,
+		period_bytes_min = us->period_size ? FRAME_SIZE * us->period_size : 128,
+		period_bytes_max = us->period_size ? FRAME_SIZE * us->period_size : 64*4096;
 
 	if ((err = snd_pcm_ioplug_set_param_list(&us->io, SND_PCM_IOPLUG_HW_ACCESS,
 						 ARRAY_SIZE(access_list), access_list)) < 0 ||
@@ -381,9 +389,9 @@ static int us_set_hw_constraint(snd_pcm_us_t *us)
 	    (err = snd_pcm_ioplug_set_param_minmax(&us->io, SND_PCM_IOPLUG_HW_CHANNELS,
 						   us->channels, us->channels)) < 0 ||
 	    (err = snd_pcm_ioplug_set_param_minmax(&us->io, SND_PCM_IOPLUG_HW_RATE,
-						   44100, 96000)) < 0 ||
+						   rate_min, rate_max)) < 0 ||
 	    (err = snd_pcm_ioplug_set_param_minmax(&us->io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
-						   128, 64*4096)) < 0 ||
+						   period_bytes_min, period_bytes_max)) < 0 ||
 	    (err = snd_pcm_ioplug_set_param_minmax(&us->io, SND_PCM_IOPLUG_HW_PERIODS,
 						   2, 2)) < 0)
 		return err;
@@ -393,7 +401,9 @@ static int us_set_hw_constraint(snd_pcm_us_t *us)
 
 static int snd_pcm_us_open(snd_pcm_t **pcmp, const char *name,
 				   const char *card,
-				   snd_pcm_stream_t stream, int mode)
+				   snd_pcm_stream_t stream, int mode,
+				   snd_pcm_uframes_t period_size,
+				   unsigned int rate)
 {
 	snd_pcm_us_t *us;
 	int err;
@@ -424,6 +434,8 @@ static int snd_pcm_us_open(snd_pcm_t **pcmp, const char *name,
 	snd_hwdep_poll_descriptors(us->hwdep, &us->pfd, 1);
 
 	us->channels = 2;
+	us->period_size = period_size;
+	us->rate = rate;
 
 	us->io.version = SND_PCM_IOPLUG_VERSION;
 	us->io.name = "ALSA <-> USB_STREAM PCM I/O Plugin";
@@ -458,6 +470,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(usb_stream)
 	snd_config_iterator_t i, next;
 	const char *card;
 	int err;
+	long period_size = 0, rate = 0;
 	
 	snd_config_for_each(i, next, conf) {
 		snd_config_t *n = snd_config_iterator_entry(i);
@@ -475,11 +488,27 @@ SND_PCM_PLUGIN_DEFINE_FUNC(usb_stream)
 			snd_config_get_string(n, &card);
 			continue;
 		}
+		if (strcmp(id, "period_size") == 0) {
+			if (snd_config_get_type(n) != SND_CONFIG_TYPE_INTEGER) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			snd_config_get_integer(n, &period_size);
+			continue;
+		}
+		if (strcmp(id, "rate") == 0) {
+			if (snd_config_get_type(n) != SND_CONFIG_TYPE_INTEGER) {
+				SNDERR("Invalid type for %s", id);
+				return -EINVAL;
+			}
+			snd_config_get_integer(n, &rate);
+			continue;
+		}
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
 	}
 
-	err = snd_pcm_us_open(pcmp, name, card, stream, mode);
+	err = snd_pcm_us_open(pcmp, name, card, stream, mode, period_size, rate);
 
 	return err;
 }
