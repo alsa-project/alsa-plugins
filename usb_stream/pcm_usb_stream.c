@@ -1,7 +1,7 @@
 /*
  *  PCM - USB_STREAM plugin
  *
- *  Copyright (c) 2008 by Karsten Wiese <fzu@wemgehoertderstaat.de>
+ *  Copyright (c) 2008, 2010 by Karsten Wiese <fzu@wemgehoertderstaat.de>
  *
  * This library is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as
@@ -256,8 +256,11 @@ static int snd_pcm_us_start(snd_pcm_ioplug_t *io)
 static int snd_pcm_us_stop(snd_pcm_ioplug_t *io)
 {
 	snd_pcm_us_t *us = io->private_data;
-	VDBG("%u", us->uus->s->periods_done);
 
+	if (!us->uus->s)
+	  return 0;
+
+	VDBG("%u", us->uus->s->periods_done);
 	if (io->stream == SND_PCM_STREAM_PLAYBACK)
 		memset(us->uus->write_area, 0, us->uus->s->write_size);
 
