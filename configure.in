@@ -1,6 +1,6 @@
 AC_PREREQ(2.59)
 AC_INIT(oss/pcm_oss.c)
-AM_INIT_AUTOMAKE(alsa-plugins, 1.0.22)
+AM_INIT_AUTOMAKE(alsa-plugins, 1.0.23)
 AC_PREFIX_DEFAULT(/usr)
 
 AC_CONFIG_HEADERS(config.h)
