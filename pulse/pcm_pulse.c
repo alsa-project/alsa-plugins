@@ -39,6 +39,7 @@ typedef struct snd_pcm_pulse {
 	size_t last_size;
 	size_t ptr;
 	int underrun;
+	int handle_underrun;
 
 	size_t offset;
 
@@ -696,8 +697,9 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
 		pa_stream_set_write_callback(pcm->stream,
 					     stream_request_cb, pcm);
-		pa_stream_set_underflow_callback(pcm->stream,
-						 stream_underrun_cb, pcm);
+		if (pcm->handle_underrun)
+			pa_stream_set_underflow_callback(pcm->stream,
+							 stream_underrun_cb, pcm);
 		r = pa_stream_connect_playback(pcm->stream, pcm->device,
 					       &pcm->buffer_attr,
 					       PA_STREAM_AUTO_TIMING_UPDATE |
@@ -980,6 +982,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 	snd_config_iterator_t i, next;
 	const char *server = NULL;
 	const char *device = NULL;
+	int handle_underrun = 0;
 	int err;
 	snd_pcm_pulse_t *pcm;
 
@@ -1005,6 +1008,14 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 			}
 			continue;
 		}
+		if (strcmp(id, "handle_underrun") == 0) {
+			if ((err = snd_config_get_bool(n)) < 0) {
+				SNDERR("Invalid value for %s", id);
+				return -EINVAL;
+			}
+			handle_underrun = err;
+			continue;
+		}
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
 	}
@@ -1027,6 +1038,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 		err = -EIO;
 		goto error;
 	}
+
+	pcm->handle_underrun = handle_underrun;
 
 	err = pulse_connect(pcm->p, server);
 	if (err < 0)
