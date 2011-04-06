@@ -436,6 +436,7 @@ static int a52_prepare(snd_pcm_ioplug_t *io)
 	rec->avctx->bit_rate = rec->bitrate * 1000;
 	rec->avctx->sample_rate = io->rate;
 	rec->avctx->channels = io->channels;
+	rec->avctx->sample_fmt = AV_SAMPLE_FMT_S16;
 #if LIBAVCODEC_VERSION_MAJOR > 52 || (LIBAVCODEC_VERSION_MAJOR == 52 && LIBAVCODEC_VERSION_MINOR >= 3)
 	switch (io->channels) {
 	case 2:
@@ -699,8 +700,13 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 
 	avcodec_init();
 	avcodec_register_all();
-	rec->codec = avcodec_find_encoder(CODEC_ID_AC3);
-	if (! rec->codec) {
+
+	rec->codec = avcodec_find_encoder_by_name("ac3_fixed");
+	if (rec->codec == NULL)
+		rec->codec = avcodec_find_encoder_by_name("ac3");
+	if (rec->codec == NULL) 
+		rec->codec = avcodec_find_encoder(CODEC_ID_AC3);
+	if (rec->codec == NULL) {
 		SNDERR("Cannot find codec engine");
 		err = -EINVAL;
 		goto error;
