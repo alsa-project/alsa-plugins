@@ -92,8 +92,8 @@ static int update_ptr(snd_pcm_pulse_t *pcm)
 		size -= pcm->offset;
 
 	/* Prevent accidental overrun of the fake ringbuffer */
-	if (size >= pcm->buffer_attr.tlength)
-		size = pcm->buffer_attr.tlength-1;
+	if (size > pcm->buffer_attr.tlength - pcm->frame_size)
+		size = pcm->buffer_attr.tlength - pcm->frame_size;
 
 	if (size > pcm->last_size) {
 		pcm->ptr += size - pcm->last_size;
