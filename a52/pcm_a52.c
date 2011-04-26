@@ -436,7 +436,11 @@ static int a52_prepare(snd_pcm_ioplug_t *io)
 	rec->avctx->bit_rate = rec->bitrate * 1000;
 	rec->avctx->sample_rate = io->rate;
 	rec->avctx->channels = io->channels;
-	rec->avctx->sample_fmt = AV_SAMPLE_FMT_S16;
+#if LIBAVCODEC_VERSION_MAJOR > 52 || (LIBAVCODEC_VERSION_MAJOR == 52 && LIBAVCODEC_VERSION_MINOR >= 95)
+  rec->avctx->sample_fmt = AV_SAMPLE_FMT_S16;
+#else
+  rec->avctx->sample_fmt = SAMPLE_FMT_S16;
+#endif
 #if LIBAVCODEC_VERSION_MAJOR > 52 || (LIBAVCODEC_VERSION_MAJOR == 52 && LIBAVCODEC_VERSION_MINOR >= 3)
 	switch (io->channels) {
 	case 2:
