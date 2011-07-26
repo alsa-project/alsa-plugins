@@ -982,6 +982,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 	snd_config_iterator_t i, next;
 	const char *server = NULL;
 	const char *device = NULL;
+	const char *fallback_name = NULL;
 	int handle_underrun = 0;
 	int err;
 	snd_pcm_pulse_t *pcm;
@@ -1016,9 +1017,19 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 			handle_underrun = err;
 			continue;
 		}
+		if (strcmp(id, "fallback") == 0) {
+			if (snd_config_get_string(n, &fallback_name) < 0) {
+				SNDERR("Invalid value for %s", id);
+				return -EINVAL;
+			}
+			continue;
+		}
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
 	}
+
+	if (fallback_name && name && !strcmp(name, fallback_name))
+		fallback_name = NULL; /* no fallback for the same name */
 
 	pcm = calloc(1, sizeof(*pcm));
 	if (!pcm)
@@ -1041,7 +1052,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 
 	pcm->handle_underrun = handle_underrun;
 
-	err = pulse_connect(pcm->p, server);
+	err = pulse_connect(pcm->p, server, !fallback_name);
 	if (err < 0)
 		goto error;
 
@@ -1073,6 +1084,10 @@ error:
 
 	free(pcm->device);
 	free(pcm);
+
+	if (fallback_name)
+		return snd_pcm_open_fallback(pcmp, root, fallback_name, name,
+					     stream, mode);
 
 	return err;
 }

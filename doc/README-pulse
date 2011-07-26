@@ -39,3 +39,22 @@ you need to do this with PCM:s then specify two PCM:s with different "device".
 
 If you do not specify any source and/or sink, then the server's defaults will
 be used.
+
+When "fallback" option is set, the plugin will try to open the given PCM
+(or control) automatically when connecting to PA server fails.  Typically,
+it should point to "sysdefault", which was introduced recently in alsa-lib,
+so that the system-default setup is used even when you overwrite "default"
+PCM and control definitions.
+
+    pcm.pulse {
+        type pulse
+        fallback "sysdefault"
+    }
+
+    ctl.pulse {
+        type pulse
+        fallback "sysdefault"
+    }
+
+   pcm.!default "pulse"
+   ctl.!default "pulse"

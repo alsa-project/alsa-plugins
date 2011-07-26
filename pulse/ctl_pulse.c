@@ -647,6 +647,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 	const char *device = NULL;
 	const char *source = NULL;
 	const char *sink = NULL;
+	const char *fallback_name = NULL;
 	int err;
 	snd_ctl_pulse_t *ctl;
 	pa_operation *o;
@@ -687,9 +688,19 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 			}
 			continue;
 		}
+		if (strcmp(id, "fallback") == 0) {
+			if (snd_config_get_string(n, &fallback_name) < 0) {
+				SNDERR("Invalid value for %s", id);
+				return -EINVAL;
+			}
+			continue;
+		}
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
 	}
+
+	if (fallback_name && name && !strcmp(name, fallback_name))
+		fallback_name = NULL; /* no fallback for the same name */
 
 	ctl = calloc(1, sizeof(*ctl));
 	if (!ctl)
@@ -701,7 +712,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 		goto error;
 	}
 
-	err = pulse_connect(ctl->p, server);
+	err = pulse_connect(ctl->p, server, !fallback_name);
 	if (err < 0)
 		goto error;
 
@@ -793,6 +804,10 @@ error:
 	free(ctl->source);
 	free(ctl->sink);
 	free(ctl);
+
+	if (fallback_name)
+		return snd_ctl_open_fallback(handlep, root,
+					     fallback_name, name, mode);
 
 	return err;
 }

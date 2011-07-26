@@ -188,7 +188,7 @@ void pulse_free(snd_pulse_t * p)
 	free(p);
 }
 
-int pulse_connect(snd_pulse_t * p, const char *server)
+int pulse_connect(snd_pulse_t * p, const char *server, int show_error)
 {
 	int err;
 	pa_context_state_t state;
@@ -225,8 +225,9 @@ int pulse_connect(snd_pulse_t * p, const char *server)
 	return 0;
 
       error:
-	SNDERR("PulseAudio: Unable to connect: %s\n",
-		pa_strerror(pa_context_errno(p->context)));
+	if (show_error)
+		SNDERR("PulseAudio: Unable to connect: %s\n",
+		       pa_strerror(pa_context_errno(p->context)));
 
 	pa_threaded_mainloop_unlock(p->mainloop);
 
