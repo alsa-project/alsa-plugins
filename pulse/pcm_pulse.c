@@ -1052,7 +1052,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 
 	pcm->handle_underrun = handle_underrun;
 
-	err = pulse_connect(pcm->p, server, !fallback_name);
+	err = pulse_connect(pcm->p, server, fallback_name != NULL);
 	if (err < 0)
 		goto error;
 

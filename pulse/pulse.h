@@ -42,7 +42,7 @@ int pulse_wait_operation(snd_pulse_t * p, pa_operation * o);
 snd_pulse_t *pulse_new(void);
 void pulse_free(snd_pulse_t * p);
 
-int pulse_connect(snd_pulse_t * p, const char *server, int show_error);
+int pulse_connect(snd_pulse_t * p, const char *server, int can_fallback);
 
 void pulse_poll_activate(snd_pulse_t * p);
 void pulse_poll_deactivate(snd_pulse_t * p);

@@ -712,7 +712,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 		goto error;
 	}
 
-	err = pulse_connect(ctl->p, server, !fallback_name);
+	err = pulse_connect(ctl->p, server, fallback_name != NULL);
 	if (err < 0)
 		goto error;
 

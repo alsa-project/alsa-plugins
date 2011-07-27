@@ -188,12 +188,18 @@ void pulse_free(snd_pulse_t * p)
 	free(p);
 }
 
-int pulse_connect(snd_pulse_t * p, const char *server, int show_error)
+int pulse_connect(snd_pulse_t * p, const char *server, int can_fallback)
 {
 	int err;
+	pa_context_flags_t flags;
 	pa_context_state_t state;
 
 	assert(p);
+
+	if (can_fallback)
+		flags = PA_CONTEXT_NOAUTOSPAWN;
+	else
+		flags = 0;
 
 	if (!p->context || !p->mainloop)
 		return -EBADFD;
@@ -204,7 +210,7 @@ int pulse_connect(snd_pulse_t * p, const char *server, int show_error)
 
 	pa_threaded_mainloop_lock(p->mainloop);
 
-	err = pa_context_connect(p->context, server, 0, NULL);
+	err = pa_context_connect(p->context, server, flags, NULL);
 	if (err < 0)
 		goto error;
 
@@ -225,7 +231,7 @@ int pulse_connect(snd_pulse_t * p, const char *server, int show_error)
 	return 0;
 
       error:
-	if (show_error)
+	if (!can_fallback)
 		SNDERR("PulseAudio: Unable to connect: %s\n",
 		       pa_strerror(pa_context_errno(p->context)));
 
