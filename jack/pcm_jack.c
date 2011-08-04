@@ -307,6 +307,19 @@ static int parse_ports(snd_pcm_jack_t *jack, snd_config_t *conf)
 	return 0;
 }
 
+static int make_nonblock(int fd)
+{
+	int fl;
+
+	if ((fl = fcntl(fd, F_GETFL)) < 0)
+		return fl;
+
+	if (fl & O_NONBLOCK)
+		return 0;
+
+	return fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+}
+
 static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 			     snd_config_t *playback_conf,
 			     snd_config_t *capture_conf,
@@ -363,6 +376,9 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 
 	socketpair(AF_LOCAL, SOCK_STREAM, 0, fd);
 	
+	make_nonblock(fd[0]);
+	make_nonblock(fd[1]);
+
 	jack->fd = fd[0];
 
 	jack->io.version = SND_PCM_IOPLUG_VERSION;
