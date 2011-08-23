@@ -42,6 +42,7 @@ typedef struct snd_pcm_pulse {
 	int handle_underrun;
 
 	size_t offset;
+	int64_t written;
 
 	pa_stream *stream;
 
@@ -460,6 +461,7 @@ static snd_pcm_sframes_t pulse_write(snd_pcm_ioplug_t * io,
 
 	/* Make sure the buffer pointer is in sync */
 	pcm->last_size -= writebytes;
+	pcm->written += writebytes;
 	ret = update_ptr(pcm);
 	if (ret < 0)
 		goto finish;
@@ -585,6 +587,15 @@ static void stream_request_cb(pa_stream * p, size_t length, void *userdata)
 	update_active(pcm);
 }
 
+#if defined(PA_CHECK_VERSION) && PA_CHECK_VERSION(0,99,0)
+#define DEFAULT_HANDLE_UNDERRUN		1
+#define do_underrun_detect(pcm, p) \
+	((pcm)->written <= pa_stream_get_underflow_index(p))
+#else
+#define DEFAULT_HANDLE_UNDERRUN		0
+#define do_underrun_detect(pcm, p)	1	/* always true */
+#endif
+
 static void stream_underrun_cb(pa_stream * p, void *userdata)
 {
 	snd_pcm_pulse_t *pcm = userdata;
@@ -594,7 +605,8 @@ static void stream_underrun_cb(pa_stream * p, void *userdata)
 	if (!pcm->p)
 		return;
 
-	pcm->underrun = 1;
+	if (do_underrun_detect(pcm, p))
+		pcm->underrun = 1;
 }
 
 static void stream_latency_cb(pa_stream *p, void *userdata) {
@@ -739,6 +751,7 @@ static int pulse_prepare(snd_pcm_ioplug_t * io)
 
 	pcm->offset = 0;
 	pcm->underrun = 0;
+	pcm->written = 0;
 
 	/* Reset fake ringbuffer */
 	pcm->last_size = 0;
@@ -983,7 +996,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 	const char *server = NULL;
 	const char *device = NULL;
 	const char *fallback_name = NULL;
-	int handle_underrun = 0;
+	int handle_underrun = DEFAULT_HANDLE_UNDERRUN;
 	int err;
 	snd_pcm_pulse_t *pcm;
 
