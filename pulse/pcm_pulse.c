@@ -587,7 +587,11 @@ static void stream_request_cb(pa_stream * p, size_t length, void *userdata)
 	update_active(pcm);
 }
 
-#if defined(PA_CHECK_VERSION) && PA_CHECK_VERSION(0,99,0)
+#ifndef PA_CHECK_VERSION
+#define PA_CHECK_VERSION(x, y, z)	0
+#endif
+
+#if PA_CHECK_VERSION(0,99,0)
 #define DEFAULT_HANDLE_UNDERRUN		1
 #define do_underrun_detect(pcm, p) \
 	((pcm)->written <= pa_stream_get_underflow_index(p))
