@@ -114,6 +114,11 @@ static int make_nonblock(int fd) {
 	return fcntl(fd, F_SETFL, fl | O_NONBLOCK);
 }
 
+static int make_close_on_exec(int fd)
+{
+    return fcntl(fd, F_SETFD, FD_CLOEXEC);
+}
+
 snd_pulse_t *pulse_new(void)
 {
 	snd_pulse_t *p;
@@ -134,7 +139,9 @@ snd_pulse_t *pulse_new(void)
 	p->thread_fd = fd[1];
 
 	make_nonblock(p->main_fd);
+	make_close_on_exec(p->main_fd);
 	make_nonblock(p->thread_fd);
+	make_close_on_exec(p->thread_fd);
 
 	p->mainloop = pa_threaded_mainloop_new();
 	if (!p->mainloop)
