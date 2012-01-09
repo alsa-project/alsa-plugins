@@ -77,7 +77,7 @@ static int snd_pcm_jack_close(snd_pcm_ioplug_t *io)
 	return 0;
 }
 
-static int snd_pcm_jack_poll_revents(snd_pcm_ioplug_t *io ATTRIBUTE_UNUSED,
+static int snd_pcm_jack_poll_revents(snd_pcm_ioplug_t *io,
 				     struct pollfd *pfds, unsigned int nfds,
 				     unsigned short *revents)
 {
@@ -87,7 +87,9 @@ static int snd_pcm_jack_poll_revents(snd_pcm_ioplug_t *io ATTRIBUTE_UNUSED,
 
 	read(pfds[0].fd, buf, 1);
 
-	*revents = pfds[0].revents;
+	*revents = pfds[0].revents & ~(POLLIN | POLLOUT);
+	if (pfds[0].revents & POLLIN)
+		*revents |= (io->stream == SND_PCM_STREAM_PLAYBACK) ? POLLOUT : POLLIN;
 	return 0;
 }
 
