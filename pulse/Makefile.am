@@ -1,3 +1,5 @@
+EXTRA_DIST = 50-pulseaudio.conf 99-pulseaudio-default.conf.example
+
 asound_module_pcm_LTLIBRARIES = libasound_module_pcm_pulse.la
 asound_module_ctl_LTLIBRARIES = libasound_module_ctl_pulse.la
 asound_module_conf_LTLIBRARIES = libasound_module_conf_pulse.la
