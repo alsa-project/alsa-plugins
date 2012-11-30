@@ -164,7 +164,7 @@ static int write_out_pending(snd_pcm_ioplug_t *io, struct a52_ctx *rec)
 static void clear_remaining_planar_data(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < io->channels; i++)
 		memset(rec->frame->data[i] + rec->filled * 2, 0,
@@ -267,7 +267,7 @@ static int fill_data(snd_pcm_ioplug_t *io,
 
 #ifdef USE_AVCODEC_FRAME
 			if (use_planar(rec)) {
-				memcpy(rec->frame->data[i], src, size * 2);
+				memcpy(rec->frame->data[ch], src, size * 2);
 				continue;
 			}
 #endif
@@ -548,15 +548,13 @@ static void set_channel_layout(snd_pcm_ioplug_t *io)
 static int alloc_input_buffer(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
-
 #ifdef USE_AVCODEC_FRAME
 	rec->frame = avcodec_alloc_frame();
 	if (!rec->frame)
 		return -ENOMEM;
-	err = av_samples_alloc(rec->frame->data, rec->frame->linesize,
-			       io->channels, rec->avctx->frame_size,
-			       rec->avctx->sample_fmt, 32);
-	if (err < 0)
+	if (av_samples_alloc(rec->frame->data, rec->frame->linesize,
+			     io->channels, rec->avctx->frame_size,
+			     rec->avctx->sample_fmt, 0) < 0)
 		return -ENOMEM;
 	rec->frame->nb_samples = rec->avctx->frame_size;
 	rec->inbuf = (short *)rec->frame->data[0];
@@ -571,11 +569,16 @@ static int alloc_input_buffer(snd_pcm_ioplug_t *io)
 static int a52_prepare(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
+	int err;
 
 	a52_free(rec);
 
+#ifdef USE_AVCODEC_FRAME
+	rec->avctx = avcodec_alloc_context3(rec->codec);
+#else
 	rec->avctx = avcodec_alloc_context();
-	if (! rec->avctx)
+#endif
+	if (!rec->avctx)
 		return -ENOMEM;
 
 	rec->avctx->bit_rate = rec->bitrate * 1000;
@@ -585,7 +588,13 @@ static int a52_prepare(snd_pcm_ioplug_t *io)
 
 	set_channel_layout(io);
 
-	if (avcodec_open(rec->avctx, rec->codec) < 0)
+
+#ifdef USE_AVCODEC_FRAME
+	err = avcodec_open2(rec->avctx, rec->codec, NULL);
+#else
+	err = avcodec_open(rec->avctx, rec->codec);
+#endif
+	if (err < 0)
 		return -EINVAL;
 
 	rec->outbuf_size = rec->avctx->frame_size * 4;
@@ -845,7 +854,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 	rec->channels = channels;
 	rec->format = format;
 
+#ifndef USE_AVCODEC_FRAME
 	avcodec_init();
+#endif
 	avcodec_register_all();
 
 	rec->codec = avcodec_find_encoder_by_name("ac3_fixed");
