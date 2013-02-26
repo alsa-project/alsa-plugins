@@ -651,6 +651,8 @@ static int pulse_pcm_poll_revents(snd_pcm_ioplug_t * io,
 	else
 		*revents = 0;
 
+	err = 0;
+
 finish:
 
 	pa_threaded_mainloop_unlock(pcm->p->mainloop);
