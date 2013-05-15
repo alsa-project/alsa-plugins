@@ -26,6 +26,7 @@
 #include <alsa/pcm_external.h>
 #include <alsa/pcm_plugin.h>
 #include AVCODEC_HEADER
+#include <libavutil/avutil.h>
 
 #if LIBAVCODEC_VERSION_MAJOR >= 53 && LIBAVCODEC_VERSION_MINOR >= 34
 #include <libavutil/audioconvert.h>
