@@ -277,10 +277,58 @@ static int vdownmix_init(snd_pcm_extplug_t *ext)
 	return 0;
 }
 
+#if SND_PCM_EXTPLUG_VERSION >= 0x102
+static unsigned int chmap[6] = {
+	SND_CHMAP_FL, SND_CHMAP_FR,
+	SND_CHMAP_RL, SND_CHMAP_RR,
+	SND_CHMAP_FC, SND_CHMAP_LFE,
+};
+
+static snd_pcm_chmap_query_t **vdownmix_query_chmaps(snd_pcm_extplug_t *ext ATTRIBUTE_UNUSED)
+{
+	snd_pcm_chmap_query_t **maps;
+	int i;
+
+	maps = calloc(4, sizeof(void *));
+	if (!maps)
+		return NULL;
+	for (i = 0; i < 3; i++) {
+		snd_pcm_chmap_query_t *p;
+		p = maps[i] = calloc(i + 4 + 2, sizeof(int));
+		if (!p) {
+			snd_pcm_free_chmaps(maps);
+			return NULL;
+		}
+		p->type = SND_CHMAP_TYPE_FIXED;
+		p->map.channels = i + 4;
+		memcpy(p->map.pos, chmap, (i + 4) * sizeof(int));
+	}
+	return maps;
+}
+
+static snd_pcm_chmap_t *vdownmix_get_chmap(snd_pcm_extplug_t *ext)
+{
+	snd_pcm_chmap_t *map;
+
+	if (ext->channels < 4 || ext->channels > 6)
+		return NULL;
+	map = malloc((ext->channels + 1) * sizeof(int));
+	if (!map)
+		return NULL;
+	map->channels = ext->channels;
+	memcpy(map->pos, chmap, ext->channels * sizeof(int));
+	return map;
+}
+#endif /* SND_PCM_EXTPLUG_VERSION >= 0x102 */
+
 static const snd_pcm_extplug_callback_t vdownmix_callback = {
 	.transfer = vdownmix_transfer,
 	.init = vdownmix_init,
 	/* .dump = filr_dump, */
+#if SND_PCM_EXTPLUG_VERSION >= 0x102
+	.query_chmaps = vdownmix_query_chmaps,
+	.get_chmap = vdownmix_get_chmap,
+#endif
 };
 
 SND_PCM_PLUGIN_DEFINE_FUNC(vdownmix)
