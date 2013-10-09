@@ -28,12 +28,6 @@
 #include AVCODEC_HEADER
 #include <libavutil/avutil.h>
 
-#if LIBAVCODEC_VERSION_MAJOR >= 53 && LIBAVCODEC_VERSION_MINOR >= 34
-#include <libavutil/audioconvert.h>
-#include <libavutil/mem.h>
-#define USE_AVCODEC_FRAME
-#endif
-
 /* some compatibility wrappers */
 #ifndef AV_VERSION_INT
 #define AV_VERSION_INT(a, b, c) (((a) << 16) | ((b) << 8) | (c))
@@ -42,6 +36,12 @@
 #define LIBAVCODEC_VERSION_INT  AV_VERSION_INT(LIBAVCODEC_VERSION_MAJOR, \
                                                LIBAVCODEC_VERSION_MINOR, \
                                                LIBAVCODEC_VERSION_MICRO)
+#endif
+
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(53, 34, 0)
+#include <libavutil/audioconvert.h>
+#include <libavutil/mem.h>
+#define USE_AVCODEC_FRAME
 #endif
 
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(54, 0, 0)
