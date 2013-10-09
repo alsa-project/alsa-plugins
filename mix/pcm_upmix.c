@@ -371,10 +371,63 @@ static int upmix_close(snd_pcm_extplug_t *ext)
 	return 0;
 }
 
+#if SND_PCM_EXTPLUG_VERSION >= 0x102
+static unsigned int chmap[8][8] = {
+	{ SND_CHMAP_MONO },
+	{ SND_CHMAP_FL, SND_CHMAP_FR },
+	{ SND_CHMAP_FL, SND_CHMAP_FR, SND_CHMAP_FC },
+	{ SND_CHMAP_FL, SND_CHMAP_FR, SND_CHMAP_RL, SND_CHMAP_RR },
+	{ SND_CHMAP_FL, SND_CHMAP_FR, SND_CHMAP_RL, SND_CHMAP_RR, SND_CHMAP_FC },
+	{ SND_CHMAP_FL, SND_CHMAP_FR, SND_CHMAP_RL, SND_CHMAP_RR, SND_CHMAP_FC, SND_CHMAP_LFE },
+	{ SND_CHMAP_FL, SND_CHMAP_FR, SND_CHMAP_RL, SND_CHMAP_RR, SND_CHMAP_FC, SND_CHMAP_LFE, SND_CHMAP_UNKNOWN },
+	{ SND_CHMAP_FL, SND_CHMAP_FR, SND_CHMAP_RL, SND_CHMAP_RR, SND_CHMAP_FC, SND_CHMAP_LFE, SND_CHMAP_SL, SND_CHMAP_SR },
+};
+
+static snd_pcm_chmap_query_t **upmix_query_chmaps(snd_pcm_extplug_t *ext ATTRIBUTE_UNUSED)
+{
+	snd_pcm_chmap_query_t **maps;
+	int i;
+
+	maps = calloc(9, sizeof(void *));
+	if (!maps)
+		return NULL;
+	for (i = 0; i < 8; i++) {
+		snd_pcm_chmap_query_t *p;
+		p = maps[i] = calloc(i + 1 + 2, sizeof(int));
+		if (!p) {
+			snd_pcm_free_chmaps(maps);
+			return NULL;
+		}
+		p->type = SND_CHMAP_TYPE_FIXED;
+		p->map.channels = i + 1;
+		memcpy(p->map.pos, &chmap[i][0], (i + 1) * sizeof(int));
+	}
+	return maps;
+}
+
+static snd_pcm_chmap_t *upmix_get_chmap(snd_pcm_extplug_t *ext)
+{
+	snd_pcm_chmap_t *map;
+
+	if (ext->channels < 1 || ext->channels > 8)
+		return NULL;
+	map = malloc((ext->channels + 1) * sizeof(int));
+	if (!map)
+		return NULL;
+	map->channels = ext->channels;
+	memcpy(map->pos, &chmap[ext->channels - 1][0], ext->channels * sizeof(int));
+	return map;
+}
+#endif /* SND_PCM_EXTPLUG_VERSION >= 0x102 */
+
 static const snd_pcm_extplug_callback_t upmix_callback = {
 	.transfer = upmix_transfer,
 	.init = upmix_init,
 	.close = upmix_close,
+#if SND_PCM_EXTPLUG_VERSION >= 0x102
+	.query_chmaps = upmix_query_chmaps,
+	.get_chmap = upmix_get_chmap,
+#endif
 };
 
 SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
