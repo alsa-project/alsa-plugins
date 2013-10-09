@@ -649,6 +649,56 @@ static int a52_close(snd_pcm_ioplug_t *io)
 	return 0;
 }
 			      
+#if SND_PCM_IOPLUG_VERSION >= 0x102
+static unsigned int chmap4[4] = {
+	SND_CHMAP_FL, SND_CHMAP_FR,
+	SND_CHMAP_RL, SND_CHMAP_RR,
+};
+static unsigned int chmap6[6] = {
+	SND_CHMAP_FL, SND_CHMAP_FR,
+	SND_CHMAP_FC, SND_CHMAP_LFE,
+	SND_CHMAP_RL, SND_CHMAP_RR,
+};
+
+static snd_pcm_chmap_query_t **a52_query_chmaps(snd_pcm_ioplug_t *io ATTRIBUTE_UNUSED)
+{
+	snd_pcm_chmap_query_t **maps;
+	int i;
+
+	maps = calloc(4, sizeof(void *));
+	if (!maps)
+		return NULL;
+	for (i = 0; i < 3; i++) {
+		snd_pcm_chmap_query_t *p;
+		p = maps[i] = calloc((i + 1) * 2 + 2, sizeof(int));
+		if (!p) {
+			snd_pcm_free_chmaps(maps);
+			return NULL;
+		}
+		p->type = SND_CHMAP_TYPE_FIXED;
+		p->map.channels = (i + 1) * 2;
+		memcpy(p->map.pos, i < 2 ? chmap4 : chmap6,
+		       (i + 1) * 2 * sizeof(int));
+	}
+	return maps;
+}
+
+static snd_pcm_chmap_t *a52_get_chmap(snd_pcm_ioplug_t *io)
+{
+	snd_pcm_chmap_t *map;
+
+	if ((io->channels % 2) || io->channels < 2 || io->channels > 6)
+		return NULL;
+	map = malloc((io->channels + 1) * sizeof(int));
+	if (!map)
+		return NULL;
+	map->channels = io->channels;
+	memcpy(map->pos, io->channels < 6 ? chmap4 : chmap6,
+	       io->channels * sizeof(int));
+	return map;
+}
+#endif /* SND_PCM_IOPLUG_VERSION >= 0x102 */
+
 /*
  * callback table
  */
@@ -666,6 +716,10 @@ static snd_pcm_ioplug_callback_t a52_ops = {
 	.poll_descriptors_count = a52_poll_descriptors_count,
 	.poll_descriptors = a52_poll_descriptors,
 	.poll_revents = a52_poll_revents,
+#if SND_PCM_IOPLUG_VERSION >= 0x102
+	.query_chmaps = a52_query_chmaps,
+	.get_chmap = a52_get_chmap,
+#endif /* SND_PCM_IOPLUG_VERSION >= 0x102 */
 };
 
 /*
