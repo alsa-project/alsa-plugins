@@ -195,8 +195,8 @@ static int a52_drain(snd_pcm_ioplug_t *io)
 	err = write_out_pending(io, rec);
 	if (err < 0)
 		return err;
-	snd_pcm_drain(rec->slave);
-	return 0;
+
+	return snd_pcm_drain(rec->slave);
 }
 
 /* check whether the areas consist of a continuous interleaved stream */
@@ -479,16 +479,14 @@ static int a52_start(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
 
-	snd_pcm_start(rec->slave);
-	return 0;
+	return snd_pcm_start(rec->slave);
 }
 
 static int a52_stop(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
 
-	snd_pcm_drop(rec->slave);
-	return 0;
+	return snd_pcm_drop(rec->slave);
 }
 
 /* release resources */
@@ -645,7 +643,7 @@ static int a52_close(snd_pcm_ioplug_t *io)
 
 	a52_free(rec);
 	if (rec->slave)
-		snd_pcm_close(rec->slave);
+		return snd_pcm_close(rec->slave);
 	return 0;
 }
 			      
