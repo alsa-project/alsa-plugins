@@ -58,6 +58,9 @@
 #endif
 #endif
 
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(54, 25, 0)
+#define AV_CODEC_ID_AC3 CODEC_ID_AC3
+#endif
 
 struct a52_ctx {
 	snd_pcm_ioplug_t io;
@@ -916,7 +919,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 	if (rec->codec == NULL)
 		rec->codec = avcodec_find_encoder_by_name("ac3");
 	if (rec->codec == NULL) 
-		rec->codec = avcodec_find_encoder(CODEC_ID_AC3);
+		rec->codec = avcodec_find_encoder(AV_CODEC_ID_AC3);
 	if (rec->codec == NULL) {
 		SNDERR("Cannot find codec engine");
 		err = -EINVAL;
