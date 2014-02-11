@@ -356,9 +356,16 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 		return -EINVAL;
 	}
 
-	if (snprintf(jack_client_name, sizeof(jack_client_name), "alsa-jack.%s%s.%d.%d", name,
-		     stream == SND_PCM_STREAM_PLAYBACK ? "P" : "C", getpid(), num++)
-	    >= (int)sizeof(jack_client_name)) {
+	if (name == NULL)
+		err = snprintf(jack_client_name, sizeof(jack_client_name),
+			       "alsa-jack.%s%s.%d.%d", name,
+			       stream == SND_PCM_STREAM_PLAYBACK ? "P" : "C",
+			       getpid(), num++);
+	else
+		err = snprintf(jack_client_name, sizeof(jack_client_name),
+			       "%s", name);
+
+	if (err >= (int)sizeof(jack_client_name)) {
 		fprintf(stderr, "%s: WARNING: JACK client name '%s' truncated to %d characters, might not be unique\n",
 			__func__, jack_client_name, (int)strlen(jack_client_name));
 	}
@@ -369,7 +376,7 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 		snd_pcm_jack_free(jack);
 		return -ENOENT;
 	}
-	
+
 	jack->areas = calloc(jack->channels, sizeof(snd_pcm_channel_area_t));
 	if (! jack->areas) {
 		snd_pcm_jack_free(jack);
@@ -423,6 +430,10 @@ SND_PCM_PLUGIN_DEFINE_FUNC(jack)
 			continue;
 		if (strcmp(id, "comment") == 0 || strcmp(id, "type") == 0 || strcmp(id, "hint") == 0)
 			continue;
+		if (strcmp(id, "name") == 0) {
+			snd_config_get_string(n, &name);
+			continue;
+		}
 		if (strcmp(id, "playback_ports") == 0) {
 			if (snd_config_get_type(n) != SND_CONFIG_TYPE_COMPOUND) {
 				SNDERR("Invalid type for %s", id);
