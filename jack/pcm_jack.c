@@ -370,7 +370,7 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 			__func__, jack_client_name, (int)strlen(jack_client_name));
 	}
 
-	jack->client = jack_client_new(jack_client_name);
+	jack->client = jack_client_open(jack_client_name, JackNoStartServer, NULL);
 
 	if (jack->client == 0) {
 		snd_pcm_jack_free(jack);
