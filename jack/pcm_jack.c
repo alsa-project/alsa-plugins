@@ -42,6 +42,7 @@ typedef struct {
 	unsigned int num_ports;
 	unsigned int hw_ptr;
 	unsigned int sample_bits;
+	snd_pcm_uframes_t min_avail;
 
 	unsigned int channels;
 	snd_pcm_channel_area_t *areas;
@@ -49,6 +50,42 @@ typedef struct {
 	jack_port_t **ports;
 	jack_client_t *client;
 } snd_pcm_jack_t;
+
+static int snd_pcm_jack_stop(snd_pcm_ioplug_t *io);
+
+static int pcm_poll_block_check(snd_pcm_ioplug_t *io)
+{
+	static char buf[32];
+	snd_pcm_sframes_t avail;
+	snd_pcm_jack_t *jack = io->private_data;
+
+	if (io->state == SND_PCM_STATE_RUNNING ||
+	    (io->state == SND_PCM_STATE_PREPARED && io->stream == SND_PCM_STREAM_CAPTURE)) {
+		avail = snd_pcm_avail_update(io->pcm);
+		if (avail >= 0 && avail < jack->min_avail) {
+			while (read(io->poll_fd, &buf, sizeof(buf)) == sizeof(buf))
+				;
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+static int pcm_poll_unblock_check(snd_pcm_ioplug_t *io)
+{
+	static char buf[1];
+	snd_pcm_sframes_t avail;
+	snd_pcm_jack_t *jack = io->private_data;
+
+	avail = snd_pcm_avail_update(io->pcm);
+	if (avail < 0 || avail >= jack->min_avail) {
+		write(jack->fd, &buf, 1);
+		return 1;
+	}
+
+	return 0;
+}
 
 static void snd_pcm_jack_free(snd_pcm_jack_t *jack)
 {
@@ -81,14 +118,10 @@ static int snd_pcm_jack_poll_revents(snd_pcm_ioplug_t *io,
 				     struct pollfd *pfds, unsigned int nfds,
 				     unsigned short *revents)
 {
-	static char buf[1];
-	
 	assert(pfds && nfds == 1 && revents);
 
-	read(pfds[0].fd, buf, 1);
-
 	*revents = pfds[0].revents & ~(POLLIN | POLLOUT);
-	if (pfds[0].revents & POLLIN)
+	if (pfds[0].revents & POLLIN && !pcm_poll_block_check(io))
 		*revents |= (io->stream == SND_PCM_STREAM_PLAYBACK) ? POLLOUT : POLLIN;
 	return 0;
 }
@@ -105,7 +138,6 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 	snd_pcm_jack_t *jack = io->private_data;
 	const snd_pcm_channel_area_t *areas;
 	snd_pcm_uframes_t xfer = 0;
-	static char buf[1];
 	unsigned int channel;
 	
 	for (channel = 0; channel < io->channels; channel++) {
@@ -145,7 +177,7 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 		xfer += frames;
 	}
 
-	write(jack->fd, buf, 1); /* for polling */
+	pcm_poll_unblock_check(io); /* unblock socket for polling if needed */
 
 	return 0;
 }
@@ -154,8 +186,25 @@ static int snd_pcm_jack_prepare(snd_pcm_ioplug_t *io)
 {
 	snd_pcm_jack_t *jack = io->private_data;
 	unsigned int i;
+	snd_pcm_sw_params_t *swparams;
+	int err;
 
 	jack->hw_ptr = 0;
+
+	jack->min_avail = io->period_size;
+	snd_pcm_sw_params_alloca(&swparams);
+	err = snd_pcm_sw_params_current(io->pcm, swparams);
+	if (err == 0) {
+		snd_pcm_sw_params_get_avail_min(swparams, &jack->min_avail);
+	}
+
+	/* deactivate jack connections if this is XRUN recovery */
+	snd_pcm_jack_stop(io);
+
+	if (io->stream == SND_PCM_STREAM_PLAYBACK)
+		pcm_poll_unblock_check(io); /* playback pcm initially accepts writes */
+	else
+		pcm_poll_block_check(io); /* block capture pcm if that's XRUN recovery */
 
 	if (jack->ports)
 		return 0;
