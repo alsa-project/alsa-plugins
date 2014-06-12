@@ -1,6 +1,6 @@
 AC_PREREQ(2.59)
-AC_INIT(oss/pcm_oss.c)
-AM_INIT_AUTOMAKE(alsa-plugins, 1.0.27)
+AC_INIT(alsa-plugins, 1.0.27)
+AM_INIT_AUTOMAKE
 AC_PREFIX_DEFAULT(/usr)
 
 AM_MAINTAINER_MODE([enable])
