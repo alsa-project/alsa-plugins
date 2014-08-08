@@ -372,6 +372,7 @@ static int make_nonblock(int fd)
 }
 
 static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
+			     const char *client_name,
 			     snd_config_t *playback_conf,
 			     snd_config_t *capture_conf,
 			     snd_pcm_stream_t stream, int mode)
@@ -405,14 +406,14 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 		return -EINVAL;
 	}
 
-	if (name == NULL)
+	if (client_name == NULL)
 		err = snprintf(jack_client_name, sizeof(jack_client_name),
 			       "alsa-jack.%s%s.%d.%d", name,
 			       stream == SND_PCM_STREAM_PLAYBACK ? "P" : "C",
 			       getpid(), num++);
 	else
 		err = snprintf(jack_client_name, sizeof(jack_client_name),
-			       "%s", name);
+			       "%s", client_name);
 
 	if (err >= (int)sizeof(jack_client_name)) {
 		fprintf(stderr, "%s: WARNING: JACK client name '%s' truncated to %d characters, might not be unique\n",
@@ -470,6 +471,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(jack)
 	snd_config_iterator_t i, next;
 	snd_config_t *playback_conf = NULL;
 	snd_config_t *capture_conf = NULL;
+	const char *client_name = NULL;
 	int err;
 	
 	snd_config_for_each(i, next, conf) {
@@ -480,7 +482,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(jack)
 		if (strcmp(id, "comment") == 0 || strcmp(id, "type") == 0 || strcmp(id, "hint") == 0)
 			continue;
 		if (strcmp(id, "name") == 0) {
-			snd_config_get_string(n, &name);
+			snd_config_get_string(n, &client_name);
 			continue;
 		}
 		if (strcmp(id, "playback_ports") == 0) {
@@ -503,7 +505,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(jack)
 		return -EINVAL;
 	}
 
-	err = snd_pcm_jack_open(pcmp, name, playback_conf, capture_conf, stream, mode);
+	err = snd_pcm_jack_open(pcmp, name, client_name, playback_conf, capture_conf, stream, mode);
 
 	return err;
 }
