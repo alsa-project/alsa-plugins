@@ -482,6 +482,12 @@ static int a52_start(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
 
+	/* When trying to start a PCM that's already running, the result is
+	   EBADFD. We might have implicitly started the buffer by filling it
+	   up, so just ignore this request if we're already running. */
+	if (snd_pcm_state(rec->slave) == SND_PCM_STATE_RUNNING)
+		return 0;
+
 	return snd_pcm_start(rec->slave);
 }
 
