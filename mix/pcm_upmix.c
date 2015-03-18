@@ -371,7 +371,7 @@ static int upmix_close(snd_pcm_extplug_t *ext)
 	return 0;
 }
 
-#if SND_PCM_EXTPLUG_VERSION >= 0x102
+#if SND_PCM_EXTPLUG_VERSION >= 0x10002
 static unsigned int chmap[8][8] = {
 	{ SND_CHMAP_MONO },
 	{ SND_CHMAP_FL, SND_CHMAP_FR },
@@ -418,13 +418,13 @@ static snd_pcm_chmap_t *upmix_get_chmap(snd_pcm_extplug_t *ext)
 	memcpy(map->pos, &chmap[ext->channels - 1][0], ext->channels * sizeof(int));
 	return map;
 }
-#endif /* SND_PCM_EXTPLUG_VERSION >= 0x102 */
+#endif /* SND_PCM_EXTPLUG_VERSION >= 0x10002 */
 
 static const snd_pcm_extplug_callback_t upmix_callback = {
 	.transfer = upmix_transfer,
 	.init = upmix_init,
 	.close = upmix_close,
-#if SND_PCM_EXTPLUG_VERSION >= 0x102
+#if SND_PCM_EXTPLUG_VERSION >= 0x10002
 	.query_chmaps = upmix_query_chmaps,
 	.get_chmap = upmix_get_chmap,
 #endif

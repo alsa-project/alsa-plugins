@@ -277,7 +277,7 @@ static int vdownmix_init(snd_pcm_extplug_t *ext)
 	return 0;
 }
 
-#if SND_PCM_EXTPLUG_VERSION >= 0x102
+#if SND_PCM_EXTPLUG_VERSION >= 0x10002
 static unsigned int chmap[6] = {
 	SND_CHMAP_FL, SND_CHMAP_FR,
 	SND_CHMAP_RL, SND_CHMAP_RR,
@@ -319,13 +319,13 @@ static snd_pcm_chmap_t *vdownmix_get_chmap(snd_pcm_extplug_t *ext)
 	memcpy(map->pos, chmap, ext->channels * sizeof(int));
 	return map;
 }
-#endif /* SND_PCM_EXTPLUG_VERSION >= 0x102 */
+#endif /* SND_PCM_EXTPLUG_VERSION >= 0x10002 */
 
 static const snd_pcm_extplug_callback_t vdownmix_callback = {
 	.transfer = vdownmix_transfer,
 	.init = vdownmix_init,
 	/* .dump = filr_dump, */
-#if SND_PCM_EXTPLUG_VERSION >= 0x102
+#if SND_PCM_EXTPLUG_VERSION >= 0x10002
 	.query_chmaps = vdownmix_query_chmaps,
 	.get_chmap = vdownmix_get_chmap,
 #endif
