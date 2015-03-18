@@ -656,7 +656,7 @@ static int a52_close(snd_pcm_ioplug_t *io)
 	return 0;
 }
 			      
-#if SND_PCM_IOPLUG_VERSION >= 0x102
+#if SND_PCM_IOPLUG_VERSION >= 0x10002
 static unsigned int chmap4[4] = {
 	SND_CHMAP_FL, SND_CHMAP_FR,
 	SND_CHMAP_RL, SND_CHMAP_RR,
@@ -704,7 +704,7 @@ static snd_pcm_chmap_t *a52_get_chmap(snd_pcm_ioplug_t *io)
 	       io->channels * sizeof(int));
 	return map;
 }
-#endif /* SND_PCM_IOPLUG_VERSION >= 0x102 */
+#endif /* SND_PCM_IOPLUG_VERSION >= 0x10002 */
 
 /*
  * callback table
@@ -723,10 +723,10 @@ static snd_pcm_ioplug_callback_t a52_ops = {
 	.poll_descriptors_count = a52_poll_descriptors_count,
 	.poll_descriptors = a52_poll_descriptors,
 	.poll_revents = a52_poll_revents,
-#if SND_PCM_IOPLUG_VERSION >= 0x102
+#if SND_PCM_IOPLUG_VERSION >= 0x10002
 	.query_chmaps = a52_query_chmaps,
 	.get_chmap = a52_get_chmap,
-#endif /* SND_PCM_IOPLUG_VERSION >= 0x102 */
+#endif /* SND_PCM_IOPLUG_VERSION >= 0x10002 */
 };
 
 /*
