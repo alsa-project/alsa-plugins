@@ -31,6 +31,7 @@
 #include <unistd.h>
 
 #include <sys/ipc.h>
+#include <sys/select.h>
 #include <sys/shm.h>
 #include <sys/stat.h>
 #include <sys/stat.h>
