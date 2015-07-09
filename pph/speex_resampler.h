@@ -82,7 +82,11 @@
       
 #else /* OUTSIDE_SPEEX */
 
+#ifdef HAVE_SPEEX_SPEEXDSP_TYPES_H
 #include "speex/speexdsp_types.h"
+#else
+#include "speex/speex_types.h"
+#endif
 
 #endif /* OUTSIDE_SPEEX */
 

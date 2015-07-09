@@ -108,7 +108,7 @@ AC_SUBST(AVCODEC_CFLAGS)
 AC_SUBST(AVCODEC_LIBS)
 AC_SUBST(AVCODEC_HEADER)
 
-PKG_CHECK_MODULES(speexdsp, [speexdsp >= 1.2rc2], [HAVE_SPEEXDSP="yes"], [HAVE_SPEEXDSP=""])
+PKG_CHECK_MODULES(speexdsp, [speexdsp >= 1.2], [HAVE_SPEEXDSP="yes"], [HAVE_SPEEXDSP=""])
 AM_CONDITIONAL(HAVE_SPEEXDSP, test "$HAVE_SPEEXDSP" = "yes")
 
 AC_ARG_WITH([speex],
@@ -132,6 +132,10 @@ fi
 
 AM_CONDITIONAL(HAVE_PPH, test "$PPH" = "builtin" -o "$PPH" = "lib")
 AM_CONDITIONAL(USE_LIBSPEEX, test "$PPH" = "lib")
+
+if test "$PPH" = "lib"; then
+    AC_CHECK_HEADERS([speex/speexdsp_types.h])
+fi
 
 test "x$prefix" = xNONE && prefix=$ac_default_prefix
 test "x$exec_prefix" = xNONE && exec_prefix=$prefix
