@@ -103,6 +103,7 @@ static void snd_pcm_jack_free(snd_pcm_jack_t *jack)
 		if (jack->io.poll_fd >= 0)
 			close(jack->io.poll_fd);
 		free(jack->areas);
+		free(jack->ports);
 		free(jack);
 	}
 }
