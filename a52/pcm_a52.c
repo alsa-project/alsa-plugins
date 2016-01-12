@@ -663,8 +663,8 @@ static unsigned int chmap4[4] = {
 };
 static unsigned int chmap6[6] = {
 	SND_CHMAP_FL, SND_CHMAP_FR,
-	SND_CHMAP_FC, SND_CHMAP_LFE,
 	SND_CHMAP_RL, SND_CHMAP_RR,
+	SND_CHMAP_FC, SND_CHMAP_LFE,
 };
 
 static snd_pcm_chmap_query_t **a52_query_chmaps(snd_pcm_ioplug_t *io ATTRIBUTE_UNUSED)
