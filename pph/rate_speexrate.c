@@ -28,6 +28,7 @@
    POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include "config.h"
 #include <stdio.h>
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_rate.h>
