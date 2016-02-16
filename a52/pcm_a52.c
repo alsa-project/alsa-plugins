@@ -39,7 +39,7 @@
 #endif
 
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(53, 34, 0)
-#include <libavutil/audioconvert.h>
+#include <libavutil/channel_layout.h>
 #include <libavutil/mem.h>
 #define USE_AVCODEC_FRAME
 #endif
