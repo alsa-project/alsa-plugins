@@ -62,6 +62,11 @@
 #define AV_CODEC_ID_AC3 CODEC_ID_AC3
 #endif
 
+#if LIBAVCODEC_VERSION_INT < 0x371c01
+#define av_frame_alloc avcodec_alloc_frame
+#define av_frame_free avcodec_free_frame
+#endif
+
 struct a52_ctx {
 	snd_pcm_ioplug_t io;
 	snd_pcm_t *slave;
@@ -513,7 +518,7 @@ static void a52_free(struct a52_ctx *rec)
 		rec->inbuf = NULL;
 	}
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(54, 28, 0)
-	avcodec_free_frame(&rec->frame);
+	av_frame_free(&rec->frame);
 #else
 	av_freep(&rec->frame);
 #endif
@@ -557,7 +562,7 @@ static int alloc_input_buffer(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
 #ifdef USE_AVCODEC_FRAME
-	rec->frame = avcodec_alloc_frame();
+	rec->frame = av_frame_alloc();
 	if (!rec->frame)
 		return -ENOMEM;
 	if (av_samples_alloc(rec->frame->data, rec->frame->linesize,
