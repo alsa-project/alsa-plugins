@@ -20,6 +20,30 @@ PKG_CHECK_MODULES(ALSA, alsa >= 1.0.11)
 AC_CHECK_LIB(asound, snd_pcm_ioplug_create,,
 	     AC_ERROR([*** libasound has no external plugin SDK]), -ldl)
 
+AC_ARG_ENABLE([oss],
+      AS_HELP_STRING([--disable-oss], [Disable building of OSS plugin]))
+AS_IF([test "x$enable_oss" != "xno"],
+      [AM_CONDITIONAL(HAVE_OSS, true)],
+      [AM_CONDITIONAL(HAVE_OSS, false)])
+
+AC_ARG_ENABLE([mix],
+      AS_HELP_STRING([--disable-mix], [Disable building of upmix and vdownmix plugins]))
+AS_IF([test "x$enable_mix" != "xno"],
+      [AM_CONDITIONAL(HAVE_MIX, true)],
+      [AM_CONDITIONAL(HAVE_MIX, false)])
+
+AC_ARG_ENABLE([usbstream],
+      AS_HELP_STRING([--disable-usbstream], [Disable building of usb_stream plugin]))
+AS_IF([test "x$enable_usbstream" != "xno"],
+      [AM_CONDITIONAL(HAVE_USBSTREAM, true)],
+      [AM_CONDITIONAL(HAVE_USBSTREAM, false)])
+
+AC_ARG_ENABLE([arcamav],
+      AS_HELP_STRING([--disable-arcamav], [Disable building of Arcam AV control plugin]))
+AS_IF([test "x$enable_arcamav" != "xno"],
+      [AM_CONDITIONAL(HAVE_ARCAMAV, true)],
+      [AM_CONDITIONAL(HAVE_ARCAMAV, false)])
+
 AC_ARG_ENABLE([jack],
       AS_HELP_STRING([--disable-jack], [Disable building of JACK plugin]))
 
@@ -108,7 +132,12 @@ AC_SUBST(AVCODEC_CFLAGS)
 AC_SUBST(AVCODEC_LIBS)
 AC_SUBST(AVCODEC_HEADER)
 
-PKG_CHECK_MODULES(speexdsp, [speexdsp >= 1.2], [HAVE_SPEEXDSP="yes"], [HAVE_SPEEXDSP=""])
+AC_ARG_ENABLE([speexdsp],
+      AS_HELP_STRING([--disable-speexdsp], [Disable building of speexdsp plugin]))
+
+if test "x$enable_speexdsp" != "xno"; then
+  PKG_CHECK_MODULES(speexdsp, [speexdsp >= 1.2rc2], [HAVE_SPEEXDSP="yes"], [HAVE_SPEEXDSP=""])
+fi
 AM_CONDITIONAL(HAVE_SPEEXDSP, test "$HAVE_SPEEXDSP" = "yes")
 
 AC_ARG_WITH([speex],
