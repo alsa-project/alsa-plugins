@@ -118,6 +118,8 @@ fi
 
 if test $HAVE_AVCODEC = yes; then
   AVCODEC_HEADER=""
+  CFLAGS_saved="$CFLAGS"
+  CFLAGS="$CFLAGS $AVCODEC_CFLAGS"
   AC_CHECK_HEADER([ffmpeg/avcodec.h], [AVCODEC_HEADER='<ffmpeg/avcodec.h>'])
   if test -z "$AVCODEC_HEADER"; then
     AC_CHECK_HEADER([libavcodec/avcodec.h], [AVCODEC_HEADER='<libavcodec/avcodec.h>'])
@@ -125,6 +127,7 @@ if test $HAVE_AVCODEC = yes; then
   if test -z "$AVCODEC_HEADER"; then
     HAVE_AVCODEC=no
   fi
+  CFLAGS="$CFLAGS_saved"
 fi
 
 AM_CONDITIONAL(HAVE_AVCODEC, test x$HAVE_AVCODEC = xyes)
