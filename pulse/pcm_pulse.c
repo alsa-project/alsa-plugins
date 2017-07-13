@@ -1143,7 +1143,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 	err = pulse_hw_constraint(pcm);
 	if (err < 0) {
 		snd_pcm_ioplug_delete(&pcm->io);
-		goto error;
+		goto error2;
 	}
 
 	*pcmp = pcm->io.pcm;
@@ -1156,6 +1156,7 @@ error:
 	free(pcm->device);
 	free(pcm);
 
+error2:
 	if (fallback_name)
 		return snd_pcm_open_fallback(pcmp, root, fallback_name, name,
 					     stream, mode);
