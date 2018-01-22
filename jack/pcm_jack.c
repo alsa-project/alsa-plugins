@@ -137,6 +137,7 @@ static int
 snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 {
 	snd_pcm_jack_t *jack = io->private_data;
+	snd_pcm_uframes_t hw_ptr;
 	const snd_pcm_channel_area_t *areas;
 	snd_pcm_uframes_t xfer = 0;
 	unsigned int channel;
@@ -155,12 +156,13 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 			return 0;
 		}
 	}
-	
+
+	hw_ptr = jack->hw_ptr;
 	areas = snd_pcm_ioplug_mmap_areas(io);
 
 	while (xfer < nframes) {
 		snd_pcm_uframes_t frames = nframes - xfer;
-		snd_pcm_uframes_t offset = jack->hw_ptr;
+		snd_pcm_uframes_t offset = hw_ptr;
 		snd_pcm_uframes_t cont = io->buffer_size - offset;
 
 		if (cont < frames)
@@ -173,10 +175,11 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 				snd_pcm_area_copy(&areas[channel], offset, &jack->areas[channel], xfer, frames, io->format);
 		}
 		
-		jack->hw_ptr += frames;
-		jack->hw_ptr %= io->buffer_size;
+		hw_ptr += frames;
+		hw_ptr %= io->buffer_size;
 		xfer += frames;
 	}
+	jack->hw_ptr = hw_ptr;
 
 	pcm_poll_unblock_check(io); /* unblock socket for polling if needed */
 
