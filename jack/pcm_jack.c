@@ -40,7 +40,8 @@ typedef struct {
 
 	char **port_names;
 	unsigned int num_ports;
-	unsigned int hw_ptr;
+	snd_pcm_uframes_t boundary;
+	snd_pcm_uframes_t hw_ptr;
 	unsigned int sample_bits;
 	snd_pcm_uframes_t min_avail;
 
@@ -130,7 +131,12 @@ static int snd_pcm_jack_poll_revents(snd_pcm_ioplug_t *io,
 static snd_pcm_sframes_t snd_pcm_jack_pointer(snd_pcm_ioplug_t *io)
 {
 	snd_pcm_jack_t *jack = io->private_data;
+
+#ifdef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
 	return jack->hw_ptr;
+#else
+	return jack->hw_ptr % io->buffer_size;
+#endif
 }
 
 static int
@@ -162,7 +168,7 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 
 	while (xfer < nframes) {
 		snd_pcm_uframes_t frames = nframes - xfer;
-		snd_pcm_uframes_t offset = hw_ptr;
+		snd_pcm_uframes_t offset = hw_ptr % io->buffer_size;
 		snd_pcm_uframes_t cont = io->buffer_size - offset;
 
 		if (cont < frames)
@@ -176,7 +182,8 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 		}
 		
 		hw_ptr += frames;
-		hw_ptr %= io->buffer_size;
+		if (hw_ptr >= jack->boundary)
+			hw_ptr -= jack->boundary;
 		xfer += frames;
 	}
 	jack->hw_ptr = hw_ptr;
@@ -200,6 +207,8 @@ static int snd_pcm_jack_prepare(snd_pcm_ioplug_t *io)
 	err = snd_pcm_sw_params_current(io->pcm, swparams);
 	if (err == 0) {
 		snd_pcm_sw_params_get_avail_min(swparams, &jack->min_avail);
+		/* get boundary for available calulation */
+		snd_pcm_sw_params_get_boundary(swparams, &jack->boundary);
 	}
 
 	/* deactivate jack connections if this is XRUN recovery */
@@ -451,6 +460,12 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 	jack->io.poll_fd = fd[1];
 	jack->io.poll_events = POLLIN;
 	jack->io.mmap_rw = 1;
+
+#ifdef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
+	jack->io.flags = SND_PCM_IOPLUG_FLAG_BOUNDARY_WA;
+#else
+#warning hw_ptr updates of buffer_size will not be recognized by the ALSA library. Consider to update your ALSA library.
+#endif
 
 	err = snd_pcm_ioplug_create(&jack->io, name, stream, mode);
 	if (err < 0) {
