@@ -20,6 +20,7 @@
  *
  */
 
+#include <stdbool.h>
 #include <byteswap.h>
 #include <sys/shm.h>
 #include <sys/types.h>
@@ -50,6 +51,9 @@ typedef struct {
 
 	jack_port_t **ports;
 	jack_client_t *client;
+
+	/* JACK thread -> ALSA thread */
+	bool xrun_detected;
 } snd_pcm_jack_t;
 
 static int snd_pcm_jack_stop(snd_pcm_ioplug_t *io);
@@ -133,6 +137,9 @@ static snd_pcm_sframes_t snd_pcm_jack_pointer(snd_pcm_ioplug_t *io)
 {
 	snd_pcm_jack_t *jack = io->private_data;
 
+	if (jack->xrun_detected)
+		return -EPIPE;
+
 #ifdef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
 	return jack->hw_ptr;
 #else
@@ -196,6 +203,20 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 			snd_pcm_areas_silence(jack->areas, io->channels, xfer,
 					      frames, io->format);
 		}
+
+		if (io->state == SND_PCM_STATE_PREPARED) {
+			/* After activating this JACK client with
+			 * jack_activate() this process callback will be called.
+			 * But the processing of snd_pcm_jack_start() would take
+			 * a while longer due to the jack_connect() calls.
+			 * Therefore the device was already started
+			 * but it is not yet in RUNNING state.
+			 * Due to this expected behaviour it is not an Xrun.
+			 */
+		} else {
+			/* report Xrun to user application */
+			jack->xrun_detected = true;
+		}
 	}
 
 	pcm_poll_unblock_check(io); /* unblock socket for polling if needed */
@@ -211,6 +232,7 @@ static int snd_pcm_jack_prepare(snd_pcm_ioplug_t *io)
 	int err;
 
 	jack->hw_ptr = 0;
+	jack->xrun_detected = false;
 
 	jack->min_avail = io->period_size;
 	snd_pcm_sw_params_alloca(&swparams);
