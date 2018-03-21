@@ -200,7 +200,7 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 		if (io->stream == SND_PCM_STREAM_PLAYBACK) {
 			const snd_pcm_uframes_t frames = nframes - xfer;
 
-			snd_pcm_areas_silence(jack->areas, io->channels, xfer,
+			snd_pcm_areas_silence(jack->areas, xfer, io->channels,
 					      frames, io->format);
 		}
 
