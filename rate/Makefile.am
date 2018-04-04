@@ -1,6 +1,10 @@
+EXTRA_DIST = 10-samplerate.conf
+
 asound_module_rate_samplerate_LTLIBRARIES = libasound_module_rate_samplerate.la
+asound_module_addon_DATA = 10-samplerate.conf
 
 asound_module_rate_sampleratedir = @ALSA_PLUGIN_DIR@
+asound_module_addondir = @ALSA_ADDON_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@ $(samplerate_CFLAGS)
 AM_LDFLAGS = -module -avoid-version -export-dynamic -no-undefined $(LDFLAGS_NOUNDEFINED)

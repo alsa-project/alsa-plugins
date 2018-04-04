@@ -1,8 +1,12 @@
+EXTRA_DIST = 50-oss.conf
+
 asound_module_pcm_oss_LTLIBRARIES = libasound_module_pcm_oss.la
 asound_module_ctl_oss_LTLIBRARIES = libasound_module_ctl_oss.la
+asound_module_addon_DATA = 50-oss.conf
 
 asound_module_pcm_ossdir = @ALSA_PLUGIN_DIR@
 asound_module_ctl_ossdir = @ALSA_PLUGIN_DIR@
+asound_module_addondir = @ALSA_ADDON_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@
 AM_LDFLAGS = -module -avoid-version -export-dynamic -no-undefined $(LDFLAGS_NOUNDEFINED)

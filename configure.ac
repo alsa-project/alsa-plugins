@@ -206,6 +206,18 @@ AC_DEFINE_UNQUOTED(ALSA_DATA_DIR, "$alsadatadir", [directory containing ALSA dat
 ALSA_DATA_DIR="$alsadatadir"
 AC_SUBST(ALSA_DATA_DIR)
 
+dnl ALSA add-on config directory
+AC_ARG_WITH(alsaaddondir,
+    AS_HELP_STRING([--with-alsaaddondir=dir],
+	[path where ALSA add-on config files are stored]),
+    alsaaddondir="$withval", alsaaddondir="")
+if test -z "$alsaaddondir"; then
+    alsaaddondir="/etc/alsa/conf.d"
+fi
+AC_DEFINE_UNQUOTED(ALSA_ADDON_DIR, "$alsaaddondir", [directory containing ALSA add-on config files])
+ALSA_ADDON_DIR="$alsaaddondir"
+AC_SUBST(ALSA_ADDON_DIR)
+
 SAVE_PLUGINS_VERSION
 
 AC_OUTPUT([

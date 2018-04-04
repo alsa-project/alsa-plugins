@@ -1,6 +1,10 @@
+EXTRA_DIST = 10-speexrate.conf
+
 asound_module_rate_speexrate_LTLIBRARIES = libasound_module_rate_speexrate.la
+asound_module_addon_DATA = 10-speexrate.conf
 
 asound_module_rate_speexratedir = @ALSA_PLUGIN_DIR@
+asound_module_addondir = @ALSA_ADDON_DIR@
 
 AM_CFLAGS = -DVAR_ARRAYS -Wall -g @ALSA_CFLAGS@
 AM_LDFLAGS = -module -avoid-version -export-dynamic -no-undefined $(LDFLAGS_NOUNDEFINED)

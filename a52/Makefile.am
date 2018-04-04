@@ -1,6 +1,10 @@
+EXTRA_DIST = 60-a52-encoder.conf
+
 asound_module_pcm_a52_LTLIBRARIES = libasound_module_pcm_a52.la
+asound_module_addon_DATA = 60-a52-encoder.conf
 
 asound_module_pcm_a52dir = @ALSA_PLUGIN_DIR@
+asound_module_addondir = @ALSA_ADDON_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@ @AVCODEC_CFLAGS@ \
 	-DAVCODEC_HEADER="@AVCODEC_HEADER@"

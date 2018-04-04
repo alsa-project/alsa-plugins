@@ -1,6 +1,10 @@
+EXTRA_DIST = 10-rate-lavc.conf
+
 asound_module_rate_lavcrate_LTLIBRARIES = libasound_module_rate_lavcrate.la
+asound_module_addon_DATA = 10-rate-lavc.conf
 
 asound_module_rate_lavcratedir = @ALSA_PLUGIN_DIR@
+asound_module_addondir = @ALSA_ADDON_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@ @AVCODEC_CFLAGS@ \
 	-DAVCODEC_HEADER="@AVCODEC_HEADER@"

@@ -937,7 +937,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 		goto error;
 	}
 
-	if (! pcm_string) {
+	if (! pcm_string || pcm_string[0] == '\0') {
 		snprintf(devstr, sizeof(devstr),
 			 "iec958:{AES0 0x%x AES1 0x%x AES2 0x%x AES3 0x%x %s%s}",
 			 IEC958_AES0_CON_EMPHASIS_NONE | IEC958_AES0_NONAUDIO |
