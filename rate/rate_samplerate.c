@@ -154,14 +154,14 @@ static void pcm_src_close(void *obj)
 }
 
 #if SND_PCM_RATE_PLUGIN_VERSION >= 0x010002
-static int get_supported_rates(void *obj, unsigned int *rate_min,
+static int get_supported_rates(void *obj ATTRIBUTE_UNUSED, unsigned int *rate_min,
 			       unsigned int *rate_max)
 {
 	*rate_min = *rate_max = 0; /* both unlimited */
 	return 0;
 }
 
-static void dump(void *obj, snd_output_t *out)
+static void dump(void *obj ATTRIBUTE_UNUSED, snd_output_t *out)
 {
 	snd_output_printf(out, "Converter: libsamplerate\n");
 }
