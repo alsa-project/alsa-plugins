@@ -1,4 +1,10 @@
-SUBDIRS = oss mix usb_stream arcam-av doc
+SUBDIRS = doc
+if HAVE_OSS
+SUBDIRS += oss
+endif
+if HAVE_MIX
+SUBDIRS += mix
+endif
 if HAVE_JACK
 SUBDIRS += jack
 endif
@@ -8,8 +14,17 @@ endif
 if HAVE_SAMPLERATE
 SUBDIRS += rate
 endif
-if HAVE_AVCODEC
-SUBDIRS += a52 rate-lavc
+if HAVE_A52
+SUBDIRS += a52
+endif
+if HAVE_AVCRATE
+SUBDIRS += rate-lavc
+endif
+if HAVE_USBSTREAM
+SUBDIRS += usb_stream
+endif
+if HAVE_ARCAMAV
+SUBDIRS += arcam-av
 endif
 if HAVE_MAEMO_PLUGIN
 SUBDIRS += maemo

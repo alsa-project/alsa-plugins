@@ -135,6 +135,22 @@ AC_SUBST(AVCODEC_CFLAGS)
 AC_SUBST(AVCODEC_LIBS)
 AC_SUBST(AVCODEC_HEADER)
 
+AC_ARG_ENABLE([a52],
+      AS_HELP_STRING([--disable-a52], [Disable building of A52 encoder plugin]))
+
+if test "x$enable_a52" != "xno" -a "$HAVE_AVCODEC" = "yes"; then
+  HAVE_A52=yes
+fi
+AM_CONDITIONAL(HAVE_A52, test x$HAVE_A52 = xyes)
+
+AC_ARG_ENABLE([avcrate],
+      AS_HELP_STRING([--disable-avcrate], [Disable building of AVC rate plugin]))
+
+if test "x$enable_avcrate" != "xno" -a "$HAVE_AVCODEC" = "yes"; then
+  HAVE_AVCRATE=yes
+fi
+AM_CONDITIONAL(HAVE_AVCRATE, test x$HAVE_AVCRATE = xyes)
+
 AC_ARG_ENABLE([speexdsp],
       AS_HELP_STRING([--disable-speexdsp], [Disable building of speexdsp plugin]))
 
@@ -260,12 +276,14 @@ if test "$HAVE_SAMPLERATE" = "yes"; then
 fi
 echo "Maemo plugin:       $HAVE_MAEMO_PLUGIN"
 echo "  Using Osso resource manager: $use_maemo_rm"
-echo "A52, lavc plugins:  $HAVE_AVCODEC"
 if test "$HAVE_AVCODEC" = "yes"; then
+  echo "AVCodec config:"
   echo "  AVCODEC_CFLAGS: $AVCODEC_CFLAGS"
   echo "  AVCODEC_LIBS: $AVCODEC_LIBS"
   echo "  AVCODEC_HEADER: $AVCODEC_HEADER"
 fi
+echo "A52 plugin:         $HAVE_A52"
+echo "AVC rate plugin:    $HAVE_AVCRATE"
 echo "Speex rate plugin:  $PPH"
 echo "Speex preprocess plugin:  $HAVE_SPEEXDSP"
 if test "$HAVE_SPEEX" = "yes"; then
