@@ -89,67 +89,55 @@ if test "$use_maemo_rm" = "yes"; then
         fi
 fi
 
-AC_ARG_ENABLE([avcodec],
-      AS_HELP_STRING([--disable-avcodec], [Don't build plugins depending on avcodec (a52)]))
+AC_ARG_ENABLE([libav],
+      AS_HELP_STRING([--disable-avlib], [Do not build plugins depending on libav/ffmpeg (a52,lavrate...)]))
 
-if test "x$enable_avcodec" != "xno"; then
-  PKG_CHECK_MODULES(AVCODEC, [libavcodec libavutil], [HAVE_AVCODEC=yes], [HAVE_AVCODEC=no])
+if test "x$enable_libav" != "xno"; then
+  PKG_CHECK_MODULES(LIBAV, [libavcodec libavutil libavresample], [HAVE_LIBAV=yes], [HAVE_LIBAV=no])
 fi
 
-if test "x$HAVE_AVCODEC" = "xno"; then
-  AC_ARG_WITH([avcodec-includedir],
-	AS_HELP_STRING([--with-avcodec-includedir=dir],
-		[AVcodec include directory]),
-	[AVCODEC_CFLAGS="-I$withval"], [AVCODEC_CFLAGS=""])
-  AC_ARG_WITH([avcodec-libdir],
-	AS_HELP_STRING([--with-avcodec-libdir=dir],
-		[AVcodec library directory]),
-	[AVCODEC_LIBS="-L$withval"], [AVCODEC_LIBS=""])
+if test "x$HAVE_LIBAV" = "xno"; then
+  AC_ARG_WITH([libav-includedir],
+	AS_HELP_STRING([--with-libav-includedir=dir],
+		[Libav/ffmpeg include directory]),
+		[LIBAV_CFLAGS="-I$(withval)"], [LIBAV_CFLAGS=""])
+  AC_ARG_WITH([libav-libdir],
+	AS_HELP_STRING([--with-libav-libdir=dir],
+		[Libav/ffmpeg library directory]),
+		[LIBAV_LIBS="-L$withval"], [LIBAV_LIBS=""])
 
   CFLAGS_saved="$CFLAGS"
   LDFLAGS_saved="$LDFLAGS"
-  CFLAGS="$CFLAGS $AVCODEC_CFLAGS"
-  LDFLAGS="$LDFLAGS $AVCODEC_LIBS"
-  AVCODEC_LIBS="$AVCODEC_LIBS -lavcodec"
-  AC_CHECK_LIB([avcodec], [avcodec_open], [HAVE_AVCODEC=yes], [HAVE_AVCODEC=no])
+  CFLAGS="$CFLAGS $LIBAV_CFLAGS"
+  LDFLAGS="$LDFLAGS $LIBAV_LIBS"
+  AC_CHECK_LIB([avcodec], [avcodec_open], [HAVE_LIBAV=yes], [HAVE_LIBAV=no])
   CFLAGS="$CFLAGS_saved"
   LDFLAGS="$LDFLAGS_saved"
+  LIBAV_CODEC_LIBS="-lavcodec"
+  LIBAV_RESAMPLE_LIBS="-lavresample -lavutil"
 fi
 
-if test $HAVE_AVCODEC = yes; then
-  AVCODEC_HEADER=""
-  CFLAGS_saved="$CFLAGS"
-  CFLAGS="$CFLAGS $AVCODEC_CFLAGS"
-  AC_CHECK_HEADER([ffmpeg/avcodec.h], [AVCODEC_HEADER='<ffmpeg/avcodec.h>'])
-  if test -z "$AVCODEC_HEADER"; then
-    AC_CHECK_HEADER([libavcodec/avcodec.h], [AVCODEC_HEADER='<libavcodec/avcodec.h>'])
-  fi
-  if test -z "$AVCODEC_HEADER"; then
-    HAVE_AVCODEC=no
-  fi
-  CFLAGS="$CFLAGS_saved"
-fi
-
-AM_CONDITIONAL(HAVE_AVCODEC, test x$HAVE_AVCODEC = xyes)
-AC_SUBST(AVCODEC_CFLAGS)
-AC_SUBST(AVCODEC_LIBS)
-AC_SUBST(AVCODEC_HEADER)
+AM_CONDITIONAL(HAVE_LIBAV, test x$HAVE_LIBAV = xyes)
+AC_SUBST(LIBAV_CFLAGS)
+AC_SUBST(LIBAV_LIBS)
+AC_SUBST(LIBAV_CODEC_LIBS)
+AC_SUBST(LIBAV_RESAMPLE_LIBS)
 
 AC_ARG_ENABLE([a52],
       AS_HELP_STRING([--disable-a52], [Disable building of A52 encoder plugin]))
 
-if test "x$enable_a52" != "xno" -a "$HAVE_AVCODEC" = "yes"; then
+if test "x$enable_a52" != "xno" -a "$HAVE_LIBAV" = "yes"; then
   HAVE_A52=yes
 fi
 AM_CONDITIONAL(HAVE_A52, test x$HAVE_A52 = xyes)
 
-AC_ARG_ENABLE([avcrate],
-      AS_HELP_STRING([--disable-avcrate], [Disable building of AVC rate plugin]))
+AC_ARG_ENABLE([lavrate],
+      AS_HELP_STRING([--disable-lavrate], [Disable building of libav/ffmpeg rate plugin]))
 
-if test "x$enable_avcrate" != "xno" -a "$HAVE_AVCODEC" = "yes"; then
-  HAVE_AVCRATE=yes
+if test "x$enable_lavrate" != "xno" -a "$HAVE_LIBAV" = "yes"; then
+  HAVE_LAVRATE=yes
 fi
-AM_CONDITIONAL(HAVE_AVCRATE, test x$HAVE_AVCRATE = xyes)
+AM_CONDITIONAL(HAVE_LAVRATE, test x$HAVE_LAVRATE = xyes)
 
 AC_ARG_ENABLE([speexdsp],
       AS_HELP_STRING([--disable-speexdsp], [Disable building of speexdsp plugin]))
@@ -245,7 +233,7 @@ AC_OUTPUT([
 	mix/Makefile
 	rate/Makefile
 	a52/Makefile
-	rate-lavc/Makefile
+	rate-lav/Makefile
 	maemo/Makefile
 	doc/Makefile
 	usb_stream/Makefile
@@ -276,14 +264,13 @@ if test "$HAVE_SAMPLERATE" = "yes"; then
 fi
 echo "Maemo plugin:       $HAVE_MAEMO_PLUGIN"
 echo "  Using Osso resource manager: $use_maemo_rm"
-if test "$HAVE_AVCODEC" = "yes"; then
-  echo "AVCodec config:"
-  echo "  AVCODEC_CFLAGS: $AVCODEC_CFLAGS"
-  echo "  AVCODEC_LIBS: $AVCODEC_LIBS"
-  echo "  AVCODEC_HEADER: $AVCODEC_HEADER"
+if test "$HAVE_LIBAV" = "yes"; then
+  echo "Libav/ffmpeg config:"
+  echo "  LIBAV_CFLAGS:   $LIBAV_CFLAGS"
+  echo "  LIBAV_LIBS:     $LIBAV_LIBS / $LIBAV_CODEC_LIBS / $LIBAV_RESAMPLE_LIBS"
 fi
-echo "A52 plugin:         $HAVE_A52"
-echo "AVC rate plugin:    $HAVE_AVCRATE"
+echo "Libav A52 plugin:   $HAVE_A52"
+echo "Libav rate plugin:  $HAVE_LAVRATE"
 echo "Speex rate plugin:  $PPH"
 echo "Speex preprocess plugin:  $HAVE_SPEEXDSP"
 if test "$HAVE_SPEEX" = "yes"; then

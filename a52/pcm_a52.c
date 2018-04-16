@@ -25,7 +25,7 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 #include <alsa/pcm_plugin.h>
-#include AVCODEC_HEADER
+#include <libavcodec/avcodec.h>
 #include <libavutil/avutil.h>
 
 /* some compatibility wrappers */

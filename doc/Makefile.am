@@ -21,8 +21,8 @@ endif
 if HAVE_A52
 EXTRA_DIST += a52.txt
 endif
-if HAVE_AVCRATE
-EXTRA_DIST += lavcrate.txt
+if HAVE_LAVRATE
+EXTRA_DIST += lavrate.txt
 endif
 if HAVE_PPH
 EXTRA_DIST += speexrate.txt

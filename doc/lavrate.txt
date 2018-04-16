@@ -1,14 +1,14 @@
-Rate Converter Plugin Using libavcodec
-======================================
+Rate Converter Plugin Using libavresample
+=========================================0
 
-The plugin in rate-lavc subdirectory is an external rate converter using
-libavcodec's resampler.  You can use this rate converter plugin by defining a
+The plugin in rate-lavr subdirectory is an external rate converter using
+libavresample library. You can use this rate converter plugin by defining a
 rate PCM with "converter" parameter, such as:
 
 	pcm.my_rate {
 		type rate
 		slave.pcm "hw"
-		converter "lavcrate"
+		converter "lavrate"
 	}
 
 The plug plugin has also a similar field, "rate_converter".

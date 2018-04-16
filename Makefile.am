@@ -17,8 +17,8 @@ endif
 if HAVE_A52
 SUBDIRS += a52
 endif
-if HAVE_AVCRATE
-SUBDIRS += rate-lavc
+if HAVE_LAVRATE
+SUBDIRS += rate-lav
 endif
 if HAVE_USBSTREAM
 SUBDIRS += usb_stream
