@@ -1,4 +1,4 @@
-GCONF_FILEs = 50-oss.conf
+GCONF_FILES = 50-oss.conf
 
 EXTRA_DIST = $(GCONF_FILES)
 
