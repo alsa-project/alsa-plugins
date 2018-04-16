@@ -1,0 +1,16 @@
+install-conf-hook:
+	mkdir -p $(DESTDIR)$(ALSA_LCONF_DIR)
+	@(echo cd $(DESTDIR)$(ALSA_LCONF_DIR);			\
+	  cd $(DESTDIR)$(ALSA_LCONF_DIR);			\
+	  for i in $(GCONF_FILES); do				\
+	    echo $(RM) $$i";" ln -s $(ALSA_GCONF_DIR)/$$i .;	\
+	    $(RM) $$i;						\
+	    ln -s $(ALSA_GCONF_DIR)/$$i .;			\
+	  done)
+uninstall-conf-hook:
+	@(echo cd $(DESTDIR)$(ALSA_LCONF_DIR);			\
+	  cd $(DESTDIR)$(ALSA_LCONF_DIR);			\
+	  for i in $(GCONF_FILES); do				\
+	    echo $(RM) $$i;					\
+	    $(RM) $$i;						\
+	  done)

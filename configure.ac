@@ -210,17 +210,29 @@ AC_DEFINE_UNQUOTED(ALSA_DATA_DIR, "$alsadatadir", [directory containing ALSA dat
 ALSA_DATA_DIR="$alsadatadir"
 AC_SUBST(ALSA_DATA_DIR)
 
-dnl ALSA add-on config directory
-AC_ARG_WITH(alsaaddondir,
-    AS_HELP_STRING([--with-alsaaddondir=dir],
-	[path where ALSA add-on config files are stored]),
-    alsaaddondir="$withval", alsaaddondir="")
-if test -z "$alsaaddondir"; then
-    alsaaddondir="/etc/alsa/conf.d"
+dnl ALSA add-on global config directory
+AC_ARG_WITH(alsagconfdir,
+    AS_HELP_STRING([--with-alsagconfdir=dir],
+	[path where ALSA global add-on config files are stored]),
+    alsagconfdir="$withval", alsagconfdir="")
+if test -z "$alsagconfdir"; then
+    alsagconfdir="$ALSA_DATA_DIR/alsa.conf.d"
 fi
-AC_DEFINE_UNQUOTED(ALSA_ADDON_DIR, "$alsaaddondir", [directory containing ALSA add-on config files])
-ALSA_ADDON_DIR="$alsaaddondir"
-AC_SUBST(ALSA_ADDON_DIR)
+AC_DEFINE_UNQUOTED(ALSA_GCONF_DIR, "$alsagconfdir", [directory containing global ALSA add-on config files])
+ALSA_GCONF_DIR="$alsagconfdir"
+AC_SUBST(ALSA_GCONF_DIR)
+
+dnl ALSA add-on local config directory
+AC_ARG_WITH(alsalconfdir,
+    AS_HELP_STRING([--with-alsalconfdir=dir],
+	[path where ALSA local add-on config files are stored]),
+    alsalconfdir="$withval", alsalconfdir="")
+if test -z "$alsalconfdir"; then
+    alsalconfdir="/etc/alsa/conf.d"
+fi
+AC_DEFINE_UNQUOTED(ALSA_LCONF_DIR, "$alsalconfdir", [directory containing local ALSA add-on config files])
+ALSA_LCONF_DIR="$alsalconfdir"
+AC_SUBST(ALSA_LCONF_DIR)
 
 SAVE_PLUGINS_VERSION
 

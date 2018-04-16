@@ -1,16 +1,20 @@
-EXTRA_DIST = 10-samplerate.conf
+GCONF_FILES = 10-samplerate.conf
+
+EXTRA_DIST = $(GCONF_FILES)
 
 asound_module_rate_samplerate_LTLIBRARIES = libasound_module_rate_samplerate.la
-asound_module_addon_DATA = 10-samplerate.conf
+asound_module_gconf_DATA = $(GCONF_FILES)
 
 asound_module_rate_sampleratedir = @ALSA_PLUGIN_DIR@
-asound_module_addondir = @ALSA_ADDON_DIR@
+asound_module_gconfdir = @ALSA_GCONF_DIR@
 
 AM_CFLAGS = -Wall -g @ALSA_CFLAGS@ $(samplerate_CFLAGS)
 AM_LDFLAGS = -module -avoid-version -export-dynamic -no-undefined $(LDFLAGS_NOUNDEFINED)
 
 libasound_module_rate_samplerate_la_SOURCES = rate_samplerate.c
 libasound_module_rate_samplerate_la_LIBADD = @ALSA_LIBS@ @samplerate_LIBS@
+
+include ../install-hooks.am
 
 install-exec-hook:
 	rm -f $(DESTDIR)@ALSA_PLUGIN_DIR@/libasound_module_rate_samplerate_*.so
@@ -21,3 +25,7 @@ install-exec-hook:
 
 uninstall-hook:
 	rm -f $(DESTDIR)$(libdir)/alsa-lib/libasound_module_rate_samplerate_*.so
+
+install-data-hook: install-conf-hook
+
+uninstall-local: uninstall-conf-hook
