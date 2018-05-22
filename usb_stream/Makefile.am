@@ -12,7 +12,7 @@ AM_CFLAGS = -Wall -g @ALSA_CFLAGS@
 AM_LDFLAGS = -module -avoid-version -export-dynamic $(LDFLAGS_NOUNDEFINED)
 
 libasound_module_pcm_usb_stream_la_SOURCES = pcm_usb_stream.c
-libasound_module_pcm_usb_stream_la_LIBADD = @ALSA_LIBS@
+libasound_module_pcm_usb_stream_la_LIBADD = @ALSA_LIBS@ -lpthread
 
 noinst_HEADERS = usb_stream.h
 
