@@ -66,6 +66,7 @@ static int pcm_poll_block_check(snd_pcm_ioplug_t *io)
 	snd_pcm_jack_t *jack = io->private_data;
 
 	if (io->state == SND_PCM_STATE_RUNNING ||
+	    io->state == SND_PCM_STATE_DRAINING ||
 	    (io->state == SND_PCM_STATE_PREPARED && io->stream == SND_PCM_STREAM_CAPTURE)) {
 		avail = snd_pcm_ioplug_avail(io, jack->hw_ptr, io->appl_ptr);
 		if (avail < jack->min_avail) {
@@ -85,7 +86,12 @@ static int pcm_poll_unblock_check(snd_pcm_ioplug_t *io)
 	snd_pcm_jack_t *jack = io->private_data;
 
 	avail = snd_pcm_ioplug_avail(io, jack->hw_ptr, io->appl_ptr);
-	if (avail >= jack->min_avail) {
+	/* In draining state poll_fd is used to wait
+	 * till all pending frames are played.
+	 * Therefore it has to be guarantee that a poll event is also generated
+	 * if the buffer contains less than min_avail frames
+	 */
+	if (avail >= jack->min_avail || io->state == SND_PCM_STATE_DRAINING) {
 		write(jack->fd, &buf, 1);
 		return 1;
 	}
@@ -161,7 +167,8 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 		jack->areas[channel].step = jack->sample_bits;
 	}
 
-	if (io->state == SND_PCM_STATE_RUNNING) {
+	if (io->state == SND_PCM_STATE_RUNNING ||
+	    io->state == SND_PCM_STATE_DRAINING) {
 		snd_pcm_uframes_t hw_ptr = jack->hw_ptr;
 		const snd_pcm_uframes_t hw_avail = snd_pcm_ioplug_hw_avail(io, hw_ptr,
 									   io->appl_ptr);
