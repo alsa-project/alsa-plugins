@@ -16,7 +16,7 @@ AC_HEADER_STDC
 
 CC_NOUNDEFINED
 
-PKG_CHECK_MODULES(ALSA, alsa >= 1.0.11)
+PKG_CHECK_MODULES(ALSA, alsa >= 1.1.6)
 AC_CHECK_LIB(asound, snd_pcm_ioplug_create,,
 	     AC_ERROR([*** libasound has no external plugin SDK]), -ldl)
 
