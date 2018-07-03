@@ -62,13 +62,13 @@ static int snd_pcm_jack_stop(snd_pcm_ioplug_t *io);
 static int pcm_poll_block_check(snd_pcm_ioplug_t *io)
 {
 	static char buf[32];
-	snd_pcm_sframes_t avail;
+	snd_pcm_uframes_t avail;
 	snd_pcm_jack_t *jack = io->private_data;
 
 	if (io->state == SND_PCM_STATE_RUNNING ||
 	    (io->state == SND_PCM_STATE_PREPARED && io->stream == SND_PCM_STREAM_CAPTURE)) {
-		avail = snd_pcm_avail_update(io->pcm);
-		if (avail >= 0 && avail < jack->min_avail) {
+		avail = snd_pcm_ioplug_avail(io, jack->hw_ptr, io->appl_ptr);
+		if (avail < jack->min_avail) {
 			while (read(io->poll_fd, &buf, sizeof(buf)) == sizeof(buf))
 				;
 			return 1;
@@ -81,11 +81,11 @@ static int pcm_poll_block_check(snd_pcm_ioplug_t *io)
 static int pcm_poll_unblock_check(snd_pcm_ioplug_t *io)
 {
 	static char buf[1];
-	snd_pcm_sframes_t avail;
+	snd_pcm_uframes_t avail;
 	snd_pcm_jack_t *jack = io->private_data;
 
-	avail = snd_pcm_avail_update(io->pcm);
-	if (avail < 0 || avail >= jack->min_avail) {
+	avail = snd_pcm_ioplug_avail(io, jack->hw_ptr, io->appl_ptr);
+	if (avail >= jack->min_avail) {
 		write(jack->fd, &buf, 1);
 		return 1;
 	}
