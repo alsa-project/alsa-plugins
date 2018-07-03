@@ -58,6 +58,15 @@ typedef struct {
 
 static int snd_pcm_jack_stop(snd_pcm_ioplug_t *io);
 
+/* snd_pcm_ioplug_avail() was introduced after alsa-lib 1.1.6 */
+#if SND_LIB_VERSION < 0x10107
+static snd_pcm_uframes_t snd_pcm_ioplug_avail(const snd_pcm_ioplug_t *io,
+					      const snd_pcm_uframes_t hw_ptr,
+					      const snd_pcm_uframes_t appl_ptr)
+{
+	return io->buffer_size - snd_pcm_ioplug_hw_avail(io, hw_ptr, appl_ptr);
+}
+#endif
 
 static int pcm_poll_block_check(snd_pcm_ioplug_t *io)
 {
