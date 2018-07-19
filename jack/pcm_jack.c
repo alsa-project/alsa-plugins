@@ -29,6 +29,8 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 
+#define MAX_PERIODS_MULTIPLE 64
+
 typedef enum _jack_format {
 	SND_PCM_JACK_FORMAT_RAW
 } snd_pcm_jack_format_t;
@@ -364,7 +366,19 @@ static int jack_set_hw_constraint(snd_pcm_jack_t *jack)
 	};
 	unsigned int format = SND_PCM_FORMAT_FLOAT;
 	unsigned int rate = jack_get_sample_rate(jack->client);
+	unsigned int psize_list[MAX_PERIODS_MULTIPLE];
+	unsigned int nframes = jack_get_buffer_size(jack->client);
+	unsigned int jack_buffer_bytes = (snd_pcm_format_size(format, nframes) *
+					  jack->channels);
+	unsigned int i;
 	int err;
+
+	if (!jack_buffer_bytes) {
+		SNDERR("Buffer size is zero");
+		return -EINVAL;
+	}
+	for (i = 1; i <= ARRAY_SIZE(psize_list); i++)
+		psize_list[i-1] = jack_buffer_bytes * i;
 
 	jack->sample_bits = snd_pcm_format_physical_width(format);
 	if ((err = snd_pcm_ioplug_set_param_list(&jack->io, SND_PCM_IOPLUG_HW_ACCESS,
@@ -375,8 +389,8 @@ static int jack_set_hw_constraint(snd_pcm_jack_t *jack)
 						   jack->channels, jack->channels)) < 0 ||
 	    (err = snd_pcm_ioplug_set_param_minmax(&jack->io, SND_PCM_IOPLUG_HW_RATE,
 						   rate, rate)) < 0 ||
-	    (err = snd_pcm_ioplug_set_param_minmax(&jack->io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
-						   128, 64*1024)) < 0 ||
+	    (err = snd_pcm_ioplug_set_param_list(&jack->io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
+						 ARRAY_SIZE(psize_list), psize_list)) < 0 ||
 	    (err = snd_pcm_ioplug_set_param_minmax(&jack->io, SND_PCM_IOPLUG_HW_PERIODS,
 						   2, 64)) < 0)
 		return err;
