@@ -90,7 +90,7 @@ if test "$use_maemo_rm" = "yes"; then
 fi
 
 AC_ARG_ENABLE([libav],
-      AS_HELP_STRING([--disable-avlib], [Do not build plugins depending on libav/ffmpeg (a52,lavrate...)]))
+      AS_HELP_STRING([--disable-libav], [Do not build plugins depending on libav/ffmpeg (a52,lavrate...)]))
 
 if test "x$enable_libav" != "xno"; then
   PKG_CHECK_MODULES(LIBAV, [libavcodec libavutil libavresample], [HAVE_LIBAV=yes], [HAVE_LIBAV=no])
