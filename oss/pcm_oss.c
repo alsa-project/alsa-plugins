@@ -413,7 +413,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(oss)
 
 	if ((err = oss_hw_constraint(oss)) < 0) {
 		snd_pcm_ioplug_delete(&oss->io);
-		return err;
+		goto error;
 	}
 
 	*pcmp = oss->io.pcm;
