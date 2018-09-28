@@ -538,6 +538,7 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 	err = jack_set_hw_constraint(jack);
 	if (err < 0) {
 		snd_pcm_ioplug_delete(&jack->io);
+		snd_pcm_jack_free(jack);
 		return err;
 	}
 
