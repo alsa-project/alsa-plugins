@@ -455,6 +455,7 @@ static int snd_pcm_us_open(snd_pcm_t **pcmp, const char *name,
 	err = us_set_hw_constraint(us);
 	if (err < 0) {
 		snd_pcm_ioplug_delete(&us->io);
+		us_free(us);
 		return err;
 	}
 
