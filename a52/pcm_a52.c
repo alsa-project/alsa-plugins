@@ -654,10 +654,13 @@ static int a52_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 static int a52_close(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
+	snd_pcm_t *slave = rec->slave;
 
 	a52_free(rec);
-	if (rec->slave)
-		return snd_pcm_close(rec->slave);
+	if (slave) {
+		rec->slave = NULL;
+		return snd_pcm_close(slave);
+	}
 	return 0;
 }
 			      
