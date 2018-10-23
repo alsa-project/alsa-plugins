@@ -300,9 +300,9 @@ static snd_pcm_sframes_t snd_pcm_us_write(snd_pcm_ioplug_t *io,
 static int usb_stream_read(struct user_usb_stream *uus, void *to)
 {
 	struct usb_stream *s = uus->s;
-	int p = s->inpacket_split, l = 0;
+	unsigned p = s->inpacket_split, l = 0;
 	void *i = (void *)s + s->inpacket[p].offset + s->inpacket_split_at;
-	int il = s->inpacket[p].length - s->inpacket_split_at;
+	unsigned il = s->inpacket[p].length - s->inpacket_split_at;
 
 	do {
 		if (l + il > s->period_size)

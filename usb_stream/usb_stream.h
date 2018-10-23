@@ -39,7 +39,7 @@ struct usb_stream {
 	unsigned read_size;
 	unsigned write_size;
 
-	int period_size;
+	unsigned period_size;
 
 	unsigned state;
 
