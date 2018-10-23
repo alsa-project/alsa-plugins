@@ -297,7 +297,7 @@ static snd_pcm_sframes_t snd_pcm_us_write(snd_pcm_ioplug_t *io,
 	return size;
 }
 
-static int usb_stream_read(struct user_usb_stream *uus, void *to, unsigned bytes)
+static int usb_stream_read(struct user_usb_stream *uus, void *to)
 {
 	struct usb_stream *s = uus->s;
 	int p = s->inpacket_split, l = 0;
@@ -337,8 +337,7 @@ static snd_pcm_sframes_t snd_pcm_us_read(snd_pcm_ioplug_t *io,
 			return -EINVAL;
 		}
 		if (us->uus->s->periods_done - us->periods_done == 1) {
-			red = usb_stream_read(us->uus, to, size * frame_size) /
-				frame_size;
+			red = usb_stream_read(us->uus, to) / frame_size;
 			us->periods_done++;
 			return red;
 		}
