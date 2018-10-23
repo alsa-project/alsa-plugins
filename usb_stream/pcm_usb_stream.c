@@ -424,8 +424,10 @@ static int snd_pcm_us_open(snd_pcm_t **pcmp, const char *name,
 	}
 	VDBG("%i %s", stream, us_name);
 	us->uus = get_uus(card);
-	if (!us->uus)
+	if (!us->uus) {
+		free(us);
 		return -ENOMEM;
+	}
 	err = snd_hwdep_open(&us->hwdep, us_name, O_RDWR);
 	if (err < 0) {
 		us_free(us);
