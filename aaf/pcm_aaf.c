@@ -23,6 +23,7 @@
 #include <arpa/inet.h>
 #include <avtp.h>
 #include <avtp_aaf.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
@@ -964,6 +965,28 @@ static int aaf_close(snd_pcm_ioplug_t *io)
 	return 0;
 }
 
+static void aaf_dump(snd_pcm_ioplug_t *io, snd_output_t *out)
+{
+	snd_pcm_aaf_t *aaf = io->private_data;
+	snd_pcm_t *pcm = io->pcm;
+
+	snd_output_printf(out, "%s\n", io->name);
+	snd_output_printf(out, "PCM setup is:\n");
+	snd_pcm_dump_setup(pcm, out);
+	snd_output_printf(out, "AVTP setup is:\n");
+	snd_output_printf(out, "  ifname: %s\n", aaf->ifname);
+	snd_output_printf(out, "  macaddr: %.2X:%.2X:%.2X:%.2X:%.2X:%.2X\n",
+			  aaf->addr[0], aaf->addr[1], aaf->addr[2],
+			  aaf->addr[3], aaf->addr[4], aaf->addr[5]);
+	snd_output_printf(out, "  priority: %d\n", aaf->prio);
+	snd_output_printf(out, "  streamid: %"PRIX64"\n", aaf->streamid);
+	snd_output_printf(out, "  mtt: %d\n", aaf->mtt / NSEC_PER_USEC);
+	snd_output_printf(out, "  time uncertainty: %d\n",
+			  aaf->t_uncertainty / NSEC_PER_USEC);
+	snd_output_printf(out, "  frames per AVTPDU: %lu\n",
+			  aaf->frames_per_pdu);
+}
+
 static int aaf_hw_params(snd_pcm_ioplug_t *io,
 			 snd_pcm_hw_params_t *params ATTRIBUTE_UNUSED)
 {
@@ -1186,6 +1209,7 @@ static snd_pcm_sframes_t aaf_transfer(snd_pcm_ioplug_t *io,
 
 static const snd_pcm_ioplug_callback_t aaf_callback = {
 	.close = aaf_close,
+	.dump = aaf_dump,
 	.hw_params = aaf_hw_params,
 	.hw_free = aaf_hw_free,
 	.sw_params = aaf_sw_params,
