@@ -181,7 +181,7 @@ AC_ARG_ENABLE([aaf],
 
 if test "x$enable_aaf" != "xno"; then
   PKG_CHECK_MODULES(AVTP, avtp >= 0.1, [HAVE_AAF=yes], [HAVE_AAF=no])
-  AC_CHECK_HEADERS([linux/if_ether.h], [], [HAVE_AAF=no])
+  AC_CHECK_HEADERS([linux/if_ether.h linux/if_packet.h], [], [HAVE_AAF=no])
 fi
 AM_CONDITIONAL(HAVE_AAF, test x$HAVE_AAF = xyes)
 
