@@ -176,6 +176,14 @@ fi
 test "x$prefix" = xNONE && prefix=$ac_default_prefix
 test "x$exec_prefix" = xNONE && exec_prefix=$prefix
 
+AC_ARG_ENABLE([aaf],
+      AS_HELP_STRING([--disable-aaf], [Disable building of AAF plugin]))
+
+if test "x$enable_aaf" != "xno"; then
+  PKG_CHECK_MODULES(AVTP, avtp >= 0.1, [HAVE_AAF=yes], [HAVE_AAF=no])
+fi
+AM_CONDITIONAL(HAVE_AAF, test x$HAVE_AAF = xyes)
+
 dnl ALSA plugin directory
 AC_ARG_WITH(plugindir,
     AS_HELP_STRING([--with-plugindir=dir],
@@ -251,6 +259,7 @@ AC_OUTPUT([
 	usb_stream/Makefile
 	speex/Makefile
 	arcam-av/Makefile
+	aaf/Makefile
 ])
 
 dnl Show the build conditions
@@ -289,3 +298,4 @@ if test "$HAVE_SPEEX" = "yes"; then
   echo "  speexdsp_CFLAGS: $speexdsp_CFLAGS"
   echo "  speexdsp_LIBS: $speexdsp_LIBS"
 fi
+echo "AAF plugin:         $HAVE_AAF"

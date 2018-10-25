@@ -1,0 +1,18 @@
+AVTP Audio Format (AAF) Plugin
+==============================
+
+Overview
+--------
+
+The AAF plugin is a PCM plugin that uses Audio Video Transport Protocol (AVTP)
+to transmit/receive audio samples through a Time-Sensitive Network (TSN)
+capable network. The plugin enables media applications to easily implement AVTP
+Talker and Listener functionalities.
+
+Plugin Dependencies
+-------------------
+
+The AAF plugin uses libavtp to handle AVTP packetization. Libavtp source code
+can be found in https://github.com/AVnu/libavtp as well as instructions to
+build and install it. If libavtp isn't detected by configure, the plugin isn't
+built.

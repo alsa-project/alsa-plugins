@@ -35,6 +35,9 @@ endif
 if HAVE_SPEEXDSP
 SUBDIRS += speex
 endif
+if HAVE_AAF
+SUBDIRS += aaf
+endif
 
 EXTRA_DIST = gitcompile version COPYING.GPL m4/attributes.m4
 AUTOMAKE_OPTIONS = foreign
