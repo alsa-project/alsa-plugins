@@ -14,5 +14,36 @@ Plugin Dependencies
 
 The AAF plugin uses libavtp to handle AVTP packetization. Libavtp source code
 can be found in https://github.com/AVnu/libavtp as well as instructions to
-build and install it. If libavtp isn't detected by configure, the plugin isn't
+build and install it.
+
+The plugin also depends on some kernel API headers such as linux/if_ether.h so
+make sure you have them installed in your system.
+
+If libavtp or the kernel headers aren't detected by configure, the plugin isn't
 built.
+
+Plugin Configuration
+--------------------
+
+The plugin parameters are passed via ALSA configuration file. They are defined
+as follows:
+
+	* ifname: Network interface used to transmit/receive AVTP packets.
+
+	* addr: Stream destination MAC address.
+
+	* prio: Priority used by the plugin to transmit AVTP traffic. This
+	  option is relevant only when operating in playback mode.
+
+	* streamid: Stream ID associated with the AAF stream transmitted or
+	  received by the plugin.
+
+	* mtt: Maximum Transit Time (in microseconds) as defined in AVTP spec
+	  section 4.3.3. This option is relevant only when operating in
+	  playback mode.
+
+	* time_uncertainty: Maximum Time Uncertainty (in microseconds) as
+	  defined by AVTP spec section 4.3.3. This option is relevant only when
+	  operating in playback mode.
+
+	* frames_per_pdu: Number of audio frames transmitted in one AVTPDU.
