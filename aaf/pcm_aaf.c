@@ -1186,7 +1186,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(aaf)
 	if (res < 0) {
 		SNDERR("Failed to set hw constraints");
 		snd_pcm_ioplug_delete(&aaf->io);
-		goto err;
+		return res;
 	}
 
 	*pcmp = aaf->io.pcm;
