@@ -239,6 +239,7 @@ static int aaf_init_socket(snd_pcm_aaf_t *aaf)
 {
 	int fd, res;
 	struct ifreq req;
+	snd_pcm_ioplug_t *io = &aaf->io;
 
 	fd = socket(AF_PACKET, SOCK_DGRAM|SOCK_NONBLOCK, htons(ETH_P_TSN));
 	if (fd < 0) {
@@ -260,12 +261,17 @@ static int aaf_init_socket(snd_pcm_aaf_t *aaf)
 	aaf->sk_addr.sll_ifindex = req.ifr_ifindex;
 	memcpy(&aaf->sk_addr.sll_addr, aaf->addr, ETH_ALEN);
 
-	res = setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &aaf->prio,
-			 sizeof(aaf->prio));
-	if (res < 0) {
-		SNDERR("Failed to set socket priority");
-		res = -errno;
-		goto err;
+	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+		res = setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &aaf->prio,
+				 sizeof(aaf->prio));
+		if (res < 0) {
+			SNDERR("Failed to set socket priority");
+			res = -errno;
+			goto err;
+		}
+	} else {
+		/* TODO: Implement Capture mode support. */
+		return -ENOTSUP;
 	}
 
 	aaf->sk_fd = fd;
@@ -305,46 +311,50 @@ static int aaf_init_pdu(snd_pcm_aaf_t *aaf)
 	if (!pdu)
 		return -ENOMEM;
 
-	res = avtp_aaf_pdu_init(pdu);
-	if (res < 0)
-		goto err;
+	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+		res = avtp_aaf_pdu_init(pdu);
+		if (res < 0)
+			goto err;
 
-	res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_TV, 1);
-	if (res < 0)
-		goto err;
+		res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_TV, 1);
+		if (res < 0)
+			goto err;
 
-	res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_STREAM_ID, aaf->streamid);
-	if (res < 0)
-		goto err;
+		res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_STREAM_ID,
+				       aaf->streamid);
+		if (res < 0)
+			goto err;
 
-	res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_FORMAT,
-			       alsa_to_avtp_format(io->format));
-	if (res < 0)
-		goto err;
+		res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_FORMAT,
+				       alsa_to_avtp_format(io->format));
+		if (res < 0)
+			goto err;
 
-	res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_NSR,
-			       alsa_to_avtp_rate(io->rate));
-	if (res < 0)
-		goto err;
+		res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_NSR,
+				       alsa_to_avtp_rate(io->rate));
+		if (res < 0)
+			goto err;
 
-	res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_CHAN_PER_FRAME,
-			       io->channels);
-	if (res < 0)
-		goto err;
+		res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_CHAN_PER_FRAME,
+				       io->channels);
+		if (res < 0)
+			goto err;
 
-	res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_BIT_DEPTH,
-			       snd_pcm_format_width(io->format));
-	if (res < 0)
-		goto err;
+		res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_BIT_DEPTH,
+				       snd_pcm_format_width(io->format));
+		if (res < 0)
+			goto err;
 
-	res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_STREAM_DATA_LEN,
-			       payload_size);
-	if (res < 0)
-		goto err;
+		res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_STREAM_DATA_LEN,
+				       payload_size);
+		if (res < 0)
+			goto err;
 
-	res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_SP, AVTP_AAF_PCM_SP_NORMAL);
-	if (res < 0)
-		goto err;
+		res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_SP,
+				       AVTP_AAF_PCM_SP_NORMAL);
+		if (res < 0)
+			goto err;
+	}
 
 	aaf->pdu = pdu;
 	aaf->pdu_size = pdu_size;
@@ -699,7 +709,10 @@ static snd_pcm_sframes_t aaf_pointer(snd_pcm_ioplug_t *io)
 
 static int aaf_poll_descriptors_count(snd_pcm_ioplug_t *io ATTRIBUTE_UNUSED)
 {
-	return FD_COUNT_PLAYBACK;
+	if (io->stream == SND_PCM_STREAM_PLAYBACK)
+		return FD_COUNT_PLAYBACK;
+	else
+		return -ENOTSUP;
 }
 
 static int aaf_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd,
@@ -707,11 +720,17 @@ static int aaf_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 {
 	snd_pcm_aaf_t *aaf = io->private_data;
 
-	if (space != FD_COUNT_PLAYBACK)
-		return -EINVAL;
+	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+		if (space != FD_COUNT_PLAYBACK)
+			return -EINVAL;
 
-	pfd[0].fd = aaf->timer_fd;
-	pfd[0].events = POLLIN;
+		pfd[0].fd = aaf->timer_fd;
+		pfd[0].events = POLLIN;
+	} else {
+		/* TODO: Implement Capture mode support. */
+		return -ENOTSUP;
+	}
+
 	return space;
 }
 
@@ -721,15 +740,20 @@ static int aaf_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 	int res;
 	snd_pcm_aaf_t *aaf = io->private_data;
 
-	if (nfds != FD_COUNT_PLAYBACK)
-		return -EINVAL;
+	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+		if (nfds != FD_COUNT_PLAYBACK)
+			return -EINVAL;
 
-	if (pfd[0].revents & POLLIN) {
-		res = aaf_mclk_timeout_playback(aaf);
-		if (res < 0)
-			return res;
+		if (pfd[0].revents & POLLIN) {
+			res = aaf_mclk_timeout_playback(aaf);
+			if (res < 0)
+				return res;
 
-		*revents = POLLIN;
+			*revents = POLLIN;
+		}
+	} else {
+		/* TODO: Implement Capture mode support. */
+		return -ENOTSUP;
 	}
 
 	return 0;
@@ -755,9 +779,14 @@ static int aaf_start(snd_pcm_ioplug_t *io)
 	int res;
 	snd_pcm_aaf_t *aaf = io->private_data;
 
-	res = aaf_mclk_start_playback(aaf);
-	if (res < 0)
-		return res;
+	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+		res = aaf_mclk_start_playback(aaf);
+		if (res < 0)
+			return res;
+	} else {
+		/* TODO: Implement Capture mode support. */
+		return -ENOTSUP;
+	}
 
 	return 0;
 }
@@ -782,12 +811,18 @@ static snd_pcm_sframes_t aaf_transfer(snd_pcm_ioplug_t *io,
 	int res;
 	snd_pcm_aaf_t *aaf = io->private_data;
 
-	res = snd_pcm_areas_copy_wrap(aaf->audiobuf_areas,
-				      (io->appl_ptr % io->buffer_size),
-				      io->buffer_size, areas, offset, size,
-				      io->channels, size, io->format);
-	if (res < 0)
-		return res;
+	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+		res = snd_pcm_areas_copy_wrap(aaf->audiobuf_areas,
+					      (io->appl_ptr % io->buffer_size),
+					      io->buffer_size, areas, offset,
+					      size, io->channels, size,
+					      io->format);
+		if (res < 0)
+			return res;
+	} else {
+		/* TODO: Implement Capture mode support. */
+		return -ENOTSUP;
+	}
 
 	return size;
 }
@@ -811,12 +846,6 @@ SND_PCM_PLUGIN_DEFINE_FUNC(aaf)
 {
 	snd_pcm_aaf_t *aaf;
 	int res;
-
-	/* For now the plugin only supports Playback mode i.e. AAF Talker
-	 * functionality.
-	 */
-	if (stream != SND_PCM_STREAM_PLAYBACK)
-		return -EINVAL;
 
 	aaf = calloc(1, sizeof(*aaf));
 	if (!aaf) {
