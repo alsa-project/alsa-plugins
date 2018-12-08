@@ -661,28 +661,18 @@ static uint64_t aaf_mclk_gettime(snd_pcm_aaf_t *aaf)
 	       (aaf->timer_expirations - 1);
 }
 
-static int aaf_tx_pdu(snd_pcm_aaf_t *aaf)
+static int aaf_tx_pdu(snd_pcm_aaf_t *aaf, snd_pcm_uframes_t ptr,
+		      uint64_t ptime)
 {
 	int res;
-	uint64_t ptime;
 	ssize_t n;
-	snd_pcm_uframes_t hw_avail;
 	snd_pcm_ioplug_t *io = &aaf->io;
 	struct avtp_stream_pdu *pdu = aaf->pdu;
-
-	hw_avail = snd_pcm_ioplug_hw_avail(io, aaf->hw_ptr, io->appl_ptr);
-	if (hw_avail < aaf->frames_per_pdu) {
-		/* If the number of available frames is less than number of
-		 * frames needed to fill an AVTPDU, we reached an underrun
-		 * state.
-		 */
-		return -EPIPE;
-	}
 
 	res = snd_pcm_areas_copy_wrap(aaf->payload_areas, 0,
 				      aaf->frames_per_pdu,
 				      aaf->audiobuf_areas,
-				      (aaf->hw_ptr % io->buffer_size),
+				      (ptr % io->buffer_size),
 				      io->buffer_size, io->channels,
 				      aaf->frames_per_pdu, io->format);
 	if (res < 0) {
@@ -694,7 +684,6 @@ static int aaf_tx_pdu(snd_pcm_aaf_t *aaf)
 	if (res < 0)
 		return res;
 
-	ptime = aaf_mclk_gettime(aaf) + aaf->mtt + aaf->t_uncertainty;
 	res = avtp_aaf_pdu_set(pdu, AVTP_AAF_FIELD_TIMESTAMP, ptime);
 	if (res < 0)
 		return res;
@@ -707,7 +696,27 @@ static int aaf_tx_pdu(snd_pcm_aaf_t *aaf)
 		return -EIO;
 	}
 
-	aaf_inc_ptr(&aaf->hw_ptr, aaf->frames_per_pdu, aaf->boundary);
+	return 0;
+}
+
+static int aaf_tx_pdus(snd_pcm_aaf_t *aaf, int pdu_count)
+{
+	int res;
+	uint64_t ptime;
+	snd_pcm_uframes_t ptr;
+
+	ptime = aaf_mclk_gettime(aaf) + aaf->mtt + aaf->t_uncertainty;
+	ptr = aaf->hw_ptr;
+
+	while (pdu_count--) {
+		res = aaf_tx_pdu(aaf, ptr, ptime);
+		if (res < 0)
+			return res;
+
+		ptime += aaf->timer_period;
+		ptr += aaf->frames_per_pdu;
+	}
+
 	return 0;
 }
 
@@ -845,6 +854,8 @@ static int aaf_mclk_timeout_playback(snd_pcm_aaf_t *aaf)
 	int res;
 	ssize_t n;
 	uint64_t expirations;
+	snd_pcm_uframes_t hw_avail;
+	snd_pcm_ioplug_t *io = &aaf->io;
 
 	n = read(aaf->timer_fd, &expirations, sizeof(uint64_t));
 	if (n < 0) {
@@ -858,9 +869,20 @@ static int aaf_mclk_timeout_playback(snd_pcm_aaf_t *aaf)
 	while (expirations--) {
 		aaf->timer_expirations++;
 
-		res = aaf_tx_pdu(aaf);
+		hw_avail = snd_pcm_ioplug_hw_avail(io, aaf->hw_ptr, io->appl_ptr);
+		if (hw_avail < aaf->frames_per_pdu) {
+			/* If the number of available frames is less than
+			 * number of frames needed to fill an AVTPDU, we
+			 * reached an underrun state.
+			 */
+			return -EPIPE;
+		}
+
+		res = aaf_tx_pdus(aaf, 1);
 		if (res < 0)
 			return res;
+
+		aaf_inc_ptr(&aaf->hw_ptr, aaf->frames_per_pdu, aaf->boundary);
 	}
 
 	return 0;
