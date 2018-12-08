@@ -895,13 +895,64 @@ static int aaf_flush_rx_buf(snd_pcm_aaf_t *aaf)
 	return 0;
 }
 
-static int aaf_mclk_timeout_playback(snd_pcm_aaf_t *aaf)
+static int aaf_tx_frames(snd_pcm_aaf_t *aaf)
+{
+	int res;
+	snd_pcm_uframes_t hw_avail;
+	snd_pcm_ioplug_t *io = &aaf->io;
+
+	hw_avail = snd_pcm_ioplug_hw_avail(io, aaf->hw_ptr, io->appl_ptr);
+	if (hw_avail < aaf->frames_per_pdu) {
+		/* If the number of available frames is less than number of
+		 * frames needed to fill an AVTPDU, we reached an underrun
+		 * state.
+		 */
+		return -EPIPE;
+	}
+
+	res = aaf_tx_pdus(aaf, 1);
+	if (res < 0)
+		return res;
+
+	aaf_inc_ptr(&aaf->hw_ptr, aaf->frames_per_pdu, aaf->boundary);
+	return 0;
+}
+
+static int aaf_present_frames(snd_pcm_aaf_t *aaf)
+{
+	snd_pcm_sframes_t len;
+	snd_pcm_ioplug_t *io = &aaf->io;
+
+	len = aaf->hw_virt_ptr - aaf->hw_ptr;
+	if (len < 0)
+		len += aaf->boundary;
+
+	if ((snd_pcm_uframes_t) len > io->buffer_size) {
+		/* If the distance between hw virtual pointer and hw
+		 * pointer is greater than the buffer size, it means we
+		 * had an overrun error so -EPIPE is returned.
+		 */
+		return -EPIPE;
+	}
+
+	aaf_inc_ptr(&aaf->hw_ptr, aaf->frames_per_pdu, aaf->boundary);
+	return 0;
+}
+
+static int aaf_process_frames(snd_pcm_aaf_t *aaf)
+{
+	snd_pcm_ioplug_t *io = &aaf->io;
+
+	return (io->stream == SND_PCM_STREAM_PLAYBACK) ?
+	       aaf_tx_frames(aaf) :
+	       aaf_present_frames(aaf);
+}
+
+static int aaf_timer_timeout(snd_pcm_aaf_t *aaf)
 {
 	int res;
 	ssize_t n;
 	uint64_t expirations;
-	snd_pcm_uframes_t hw_avail;
-	snd_pcm_ioplug_t *io = &aaf->io;
 
 	n = read(aaf->timer_fd, &expirations, sizeof(uint64_t));
 	if (n < 0) {
@@ -910,62 +961,14 @@ static int aaf_mclk_timeout_playback(snd_pcm_aaf_t *aaf)
 	}
 
 	if (expirations != 1)
-		pr_debug("Missed %llu tx interval(s) ", expirations - 1);
+		pr_debug("Missed %llu expirations ", expirations - 1);
 
 	while (expirations--) {
 		aaf->timer_expirations++;
 
-		hw_avail = snd_pcm_ioplug_hw_avail(io, aaf->hw_ptr, io->appl_ptr);
-		if (hw_avail < aaf->frames_per_pdu) {
-			/* If the number of available frames is less than
-			 * number of frames needed to fill an AVTPDU, we
-			 * reached an underrun state.
-			 */
-			return -EPIPE;
-		}
-
-		res = aaf_tx_pdus(aaf, 1);
+		res = aaf_process_frames(aaf);
 		if (res < 0)
 			return res;
-
-		aaf_inc_ptr(&aaf->hw_ptr, aaf->frames_per_pdu, aaf->boundary);
-	}
-
-	return 0;
-}
-
-static int aaf_mclk_timeout_capture(snd_pcm_aaf_t *aaf)
-{
-	ssize_t n;
-	uint64_t expirations;
-	snd_pcm_sframes_t len;
-	snd_pcm_ioplug_t *io = &aaf->io;
-
-	n = read(aaf->timer_fd, &expirations, sizeof(uint64_t));
-	if (n < 0) {
-		SNDERR("Failed to read() timer");
-		return -errno;
-	}
-
-	if (expirations != 1)
-		pr_debug("Missed %llu presentation time(s) ", expirations - 1);
-
-	while (expirations--) {
-		aaf->timer_expirations++;
-
-		len = aaf->hw_virt_ptr - aaf->hw_ptr;
-		if (len < 0)
-			len += aaf->boundary;
-
-		if ((snd_pcm_uframes_t) len > io->buffer_size) {
-			/* If the distance between hw virtual pointer and hw
-			 * pointer is greater than the buffer size, it means we
-			 * had an overrun error so -EPIPE is returned.
-			 */
-			return -EPIPE;
-		}
-
-		aaf_inc_ptr(&aaf->hw_ptr, aaf->frames_per_pdu, aaf->boundary);
 	}
 
 	return 0;
@@ -1152,7 +1155,7 @@ static int aaf_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 			return -EINVAL;
 
 		if (pfd[0].revents & POLLIN) {
-			res = aaf_mclk_timeout_playback(aaf);
+			res = aaf_timer_timeout(aaf);
 			if (res < 0)
 				return res;
 
@@ -1163,7 +1166,7 @@ static int aaf_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
 			return -EINVAL;
 
 		if (pfd[0].revents & POLLIN) {
-			res = aaf_mclk_timeout_capture(aaf);
+			res = aaf_timer_timeout(aaf);
 			if (res < 0)
 				return res;
 
