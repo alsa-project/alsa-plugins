@@ -83,6 +83,8 @@ typedef struct {
 	snd_pcm_uframes_t boundary;
 
 	uint64_t prev_ptime;
+
+	int pdu_period;
 } snd_pcm_aaf_t;
 
 static unsigned int alsa_to_avtp_format(snd_pcm_format_t format)
@@ -489,7 +491,7 @@ static int aaf_mclk_start_playback(snd_pcm_aaf_t *aaf)
 		return -errno;
 	}
 
-	period = (uint64_t)NSEC_PER_SEC * aaf->frames_per_pdu / io->rate;
+	period = (uint64_t)NSEC_PER_SEC * io->period_size / io->rate;
 	time = now.tv_sec * NSEC_PER_SEC + now.tv_nsec + period;
 	res = aaf_mclk_start(aaf, time, period);
 	if (res < 0)
@@ -502,7 +504,7 @@ static int aaf_mclk_start_capture(snd_pcm_aaf_t *aaf, uint32_t avtp_time)
 {
 	int res;
 	struct timespec tspec;
-	uint64_t now, ptime, period;
+	uint64_t now, ptime, time, period;
 	snd_pcm_ioplug_t *io = &aaf->io;
 
 	res = clock_gettime(CLOCK_TAI, &tspec);
@@ -526,8 +528,9 @@ static int aaf_mclk_start_capture(snd_pcm_aaf_t *aaf, uint32_t avtp_time)
 	if (ptime < now)
 		ptime += (1ULL << 32);
 
-	period = (uint64_t)NSEC_PER_SEC * aaf->frames_per_pdu / io->rate;
-	res = aaf_mclk_start(aaf, ptime, period);
+	period = (uint64_t)NSEC_PER_SEC * io->period_size / io->rate;
+	time = ptime + period;
+	res = aaf_mclk_start(aaf, time, period);
 	if (res < 0)
 		return res;
 
@@ -613,7 +616,7 @@ static int aaf_tx_pdus(snd_pcm_aaf_t *aaf, int pdu_count)
 		if (res < 0)
 			return res;
 
-		ptime += aaf->timer_period;
+		ptime += aaf->pdu_period;
 		ptr += aaf->frames_per_pdu;
 	}
 
@@ -622,7 +625,7 @@ static int aaf_tx_pdus(snd_pcm_aaf_t *aaf, int pdu_count)
 
 static bool is_ptime_valid(snd_pcm_aaf_t *aaf, uint32_t avtp_time)
 {
-	const uint64_t exp_ptime = aaf->prev_ptime + aaf->timer_period;
+	const uint64_t exp_ptime = aaf->prev_ptime + aaf->pdu_period;
 	const uint64_t lower_bound = exp_ptime - aaf->ptime_tolerance;
 	const uint64_t upper_bound = exp_ptime + aaf->ptime_tolerance;
 	const uint64_t ptime = (exp_ptime & 0xFFFFFFFF00000000ULL) | avtp_time;
@@ -899,22 +902,23 @@ static int aaf_tx_frames(snd_pcm_aaf_t *aaf)
 {
 	int res;
 	snd_pcm_uframes_t hw_avail;
+	int pdu_count;
 	snd_pcm_ioplug_t *io = &aaf->io;
 
 	hw_avail = snd_pcm_ioplug_hw_avail(io, aaf->hw_ptr, io->appl_ptr);
-	if (hw_avail < aaf->frames_per_pdu) {
-		/* If the number of available frames is less than number of
-		 * frames needed to fill an AVTPDU, we reached an underrun
-		 * state.
+	if (hw_avail < io->period_size) {
+		/* If the number of available frames is less than the period
+		 * size, we reached an underrun state.
 		 */
 		return -EPIPE;
 	}
 
-	res = aaf_tx_pdus(aaf, 1);
+	pdu_count = io->period_size / aaf->frames_per_pdu;
+	res = aaf_tx_pdus(aaf, pdu_count);
 	if (res < 0)
 		return res;
 
-	aaf_inc_ptr(&aaf->hw_ptr, aaf->frames_per_pdu, aaf->boundary);
+	aaf_inc_ptr(&aaf->hw_ptr, io->period_size, aaf->boundary);
 	return 0;
 }
 
@@ -935,7 +939,7 @@ static int aaf_present_frames(snd_pcm_aaf_t *aaf)
 		return -EPIPE;
 	}
 
-	aaf_inc_ptr(&aaf->hw_ptr, aaf->frames_per_pdu, aaf->boundary);
+	aaf_inc_ptr(&aaf->hw_ptr, io->period_size, aaf->boundary);
 	return 0;
 }
 
@@ -1071,8 +1075,22 @@ static int aaf_hw_params(snd_pcm_ioplug_t *io,
 	if (res < 0)
 		goto err_free_pdu;
 
+	if (io->period_size % aaf->frames_per_pdu) {
+		/* The plugin requires that the period size is multiple of the
+		 * configuration frames_per_pdu. Return error if this
+		 * requirement isn't satisfied.
+		 */
+		SNDERR("Period size must be multiple of frames_per_pdu");
+		res = -EINVAL;
+		goto err_free_areas;
+	}
+
+	aaf->pdu_period = (uint64_t)NSEC_PER_SEC * aaf->frames_per_pdu /
+			  io->rate;
 	return 0;
 
+err_free_areas:
+	free(aaf->payload_areas);
 err_free_pdu:
 	free(aaf->pdu);
 err_close_timer:
