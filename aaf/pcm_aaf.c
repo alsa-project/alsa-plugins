@@ -27,6 +27,7 @@
 #include <limits.h>
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
+#include <linux/net_tstamp.h>
 #include <net/if.h>
 #include <string.h>
 #include <stdbool.h>
@@ -70,6 +71,9 @@ typedef struct {
 	struct avtp_stream_pdu *pdu;
 	int pdu_size;
 	uint8_t pdu_seq;
+
+	struct msghdr *msg;
+	struct cmsghdr *cmsg;
 
 	uint64_t timer_starttime;
 	uint64_t timer_period;
@@ -282,10 +286,22 @@ static int aaf_init_socket(snd_pcm_aaf_t *aaf)
 	memcpy(&aaf->sk_addr.sll_addr, aaf->addr, ETH_ALEN);
 
 	if (io->stream == SND_PCM_STREAM_PLAYBACK) {
+		struct sock_txtime txtime_cfg;
+
 		res = setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &aaf->prio,
 				 sizeof(aaf->prio));
 		if (res < 0) {
 			SNDERR("Failed to set socket priority");
+			res = -errno;
+			goto err;
+		}
+
+		txtime_cfg.clockid = CLOCK_TAI;
+		txtime_cfg.flags = 0;
+		res = setsockopt(fd, SOL_SOCKET, SO_TXTIME, &txtime_cfg,
+				sizeof(txtime_cfg));
+		if (res < 0) {
+			SNDERR("Failed to configure txtime");
 			res = -errno;
 			goto err;
 		}
@@ -447,6 +463,62 @@ err:
 	return res;
 }
 
+static int aaf_init_msghdr(snd_pcm_aaf_t *aaf)
+{
+	int res;
+	struct iovec *iov;
+	char *control;
+	size_t controllen;
+	struct msghdr *msg;
+	struct cmsghdr *cmsg;
+
+	iov = malloc(sizeof(struct iovec));
+	if (!iov) {
+		SNDERR("Failed to allocate iovec");
+		return -ENOMEM;
+	}
+
+	iov->iov_base = aaf->pdu;
+	iov->iov_len = aaf->pdu_size;
+
+	controllen = CMSG_SPACE(sizeof(__u64));
+	control = malloc(controllen);
+	if (!control) {
+		SNDERR("Failed to allocate control buffer");
+		res = -ENOMEM;
+		goto err_free_iov;
+	}
+
+	msg = malloc(sizeof(struct msghdr));
+	if (!msg) {
+		SNDERR("Failed to allocate msghdr");
+		res = -ENOMEM;
+		goto err_free_control;
+	}
+
+	msg->msg_name = &aaf->sk_addr;
+	msg->msg_namelen = sizeof(aaf->sk_addr);
+	msg->msg_iov = iov;
+	msg->msg_iovlen = 1;
+	msg->msg_control = control;
+	msg->msg_controllen = controllen;
+
+	cmsg = CMSG_FIRSTHDR(msg);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_TXTIME;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(__u64));
+
+	aaf->msg = msg;
+	aaf->cmsg = cmsg;
+	return 0;
+
+err_free_control:
+	free(control);
+err_free_iov:
+	free(iov);
+	return res;
+}
+
 static void aaf_inc_ptr(snd_pcm_uframes_t *ptr, snd_pcm_uframes_t val,
 			snd_pcm_uframes_t boundary)
 {
@@ -565,12 +637,14 @@ static uint64_t aaf_mclk_gettime(snd_pcm_aaf_t *aaf)
 }
 
 static int aaf_tx_pdu(snd_pcm_aaf_t *aaf, snd_pcm_uframes_t ptr,
-		      uint64_t ptime)
+		      uint64_t ptime, __u64 txtime)
 {
 	int res;
 	ssize_t n;
 	snd_pcm_ioplug_t *io = &aaf->io;
 	struct avtp_stream_pdu *pdu = aaf->pdu;
+
+	*(__u64 *)CMSG_DATA(aaf->cmsg) = txtime;
 
 	res = snd_pcm_areas_copy_wrap(aaf->payload_areas, 0,
 				      aaf->frames_per_pdu,
@@ -591,9 +665,7 @@ static int aaf_tx_pdu(snd_pcm_aaf_t *aaf, snd_pcm_uframes_t ptr,
 	if (res < 0)
 		return res;
 
-	n = sendto(aaf->sk_fd, aaf->pdu, aaf->pdu_size, 0,
-		   (struct sockaddr *) &aaf->sk_addr,
-		   sizeof(aaf->sk_addr));
+	n = sendmsg(aaf->sk_fd, aaf->msg, 0);
 	if (n < 0 || n != aaf->pdu_size) {
 		SNDERR("Failed to send AAF PDU");
 		return -EIO;
@@ -605,17 +677,19 @@ static int aaf_tx_pdu(snd_pcm_aaf_t *aaf, snd_pcm_uframes_t ptr,
 static int aaf_tx_pdus(snd_pcm_aaf_t *aaf, int pdu_count)
 {
 	int res;
-	uint64_t ptime;
+	uint64_t ptime, txtime;
 	snd_pcm_uframes_t ptr;
 
-	ptime = aaf_mclk_gettime(aaf) + aaf->mtt + aaf->t_uncertainty;
+	txtime = aaf_mclk_gettime(aaf) + aaf->t_uncertainty;
+	ptime = txtime + aaf->mtt;
 	ptr = aaf->hw_ptr;
 
 	while (pdu_count--) {
-		res = aaf_tx_pdu(aaf, ptr, ptime);
+		res = aaf_tx_pdu(aaf, ptr, ptime, txtime);
 		if (res < 0)
 			return res;
 
+		txtime += aaf->pdu_period;
 		ptime += aaf->pdu_period;
 		ptr += aaf->frames_per_pdu;
 	}
@@ -1075,6 +1149,10 @@ static int aaf_hw_params(snd_pcm_ioplug_t *io,
 	if (res < 0)
 		goto err_free_pdu;
 
+	res = aaf_init_msghdr(aaf);
+	if (res < 0)
+		goto err_free_areas;
+
 	if (io->period_size % aaf->frames_per_pdu) {
 		/* The plugin requires that the period size is multiple of the
 		 * configuration frames_per_pdu. Return error if this
@@ -1082,13 +1160,17 @@ static int aaf_hw_params(snd_pcm_ioplug_t *io,
 		 */
 		SNDERR("Period size must be multiple of frames_per_pdu");
 		res = -EINVAL;
-		goto err_free_areas;
+		goto err_free_msghdr;
 	}
 
 	aaf->pdu_period = (uint64_t)NSEC_PER_SEC * aaf->frames_per_pdu /
 			  io->rate;
 	return 0;
 
+err_free_msghdr:
+	free(aaf->msg->msg_iov);
+	free(aaf->msg->msg_control);
+	free(aaf->msg);
 err_free_areas:
 	free(aaf->payload_areas);
 err_free_pdu:
@@ -1108,6 +1190,9 @@ static int aaf_hw_free(snd_pcm_ioplug_t *io)
 	close(aaf->timer_fd);
 	free(aaf->pdu);
 	free(aaf->payload_areas);
+	free(aaf->msg->msg_iov);
+	free(aaf->msg->msg_control);
+	free(aaf->msg);
 	return 0;
 }
 
