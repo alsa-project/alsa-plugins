@@ -121,6 +121,11 @@ as follows:
 
 	* frames_per_pdu: Number of audio frames transmitted in one AVTPDU.
 
+	* ptime_tolerance: Presentation time tolerance in microseconds.
+	  AVTPDUs with presentation time off by +- ptime_tolerance are not
+	  considered invalid. This option is relevant only when operating in
+	  capture mode.
+
 Plugin Usage
 ------------
 
@@ -138,6 +143,7 @@ below:
 		mtt 2000
 		time_uncertainty 125
 		frames_per_pdu 6
+		ptime_tolerance 100
 	}
 
 Put the above to ~/.asoundrc (or /etc/asound.conf), and use the AAF PCM virtual

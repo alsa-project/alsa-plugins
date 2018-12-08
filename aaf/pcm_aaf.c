@@ -60,6 +60,7 @@ typedef struct {
 	int mtt;
 	int t_uncertainty;
 	snd_pcm_uframes_t frames_per_pdu;
+	int ptime_tolerance;
 
 	int sk_fd;
 	int timer_fd;
@@ -328,6 +329,17 @@ static int aaf_load_config(snd_pcm_aaf_t *aaf, snd_config_t *conf)
 				goto err;
 
 			aaf->frames_per_pdu = frames_per_pdu;
+		} else if (strcmp(id, "ptime_tolerance") == 0) {
+			long ptime_tolerance;
+
+			if (snd_config_get_integer(entry,
+						   &ptime_tolerance) < 0)
+				goto err;
+
+			if (ptime_tolerance < 0)
+				goto err;
+
+			aaf->ptime_tolerance = ptime_tolerance * NSEC_PER_USEC;
 		} else {
 			SNDERR("Invalid configuration: %s", id);
 			goto err;
@@ -699,6 +711,27 @@ static int aaf_tx_pdu(snd_pcm_aaf_t *aaf)
 	return 0;
 }
 
+static bool is_ptime_valid(snd_pcm_aaf_t *aaf, uint32_t avtp_time)
+{
+	const uint64_t exp_ptime = aaf->prev_ptime + aaf->timer_period;
+	const uint64_t lower_bound = exp_ptime - aaf->ptime_tolerance;
+	const uint64_t upper_bound = exp_ptime + aaf->ptime_tolerance;
+	const uint64_t ptime = (exp_ptime & 0xFFFFFFFF00000000ULL) | avtp_time;
+
+	if (ptime < lower_bound || ptime > upper_bound) {
+		pr_debug("Presentation time not expected");
+		return false;
+	}
+
+	if (ptime < aaf_mclk_gettime(aaf)) {
+		pr_debug("Presentation time in the past");
+		return false;
+	}
+
+	aaf->prev_ptime = ptime;
+	return true;
+}
+
 static int aaf_rx_pdu(snd_pcm_aaf_t *aaf)
 {
 	int res;
@@ -753,19 +786,10 @@ static int aaf_rx_pdu(snd_pcm_aaf_t *aaf)
 		if (res < 0)
 			return res;
 	} else {
-		uint64_t ptime = aaf->prev_ptime + aaf->timer_period;
-
-		if (avtp_time != ptime % (1ULL << 32)) {
-			pr_debug("Packet dropped: PT not expected");
+		if (!is_ptime_valid(aaf, avtp_time)) {
+			pr_debug("Packet dropped: PT not valid");
 			return 0;
 		}
-
-		if (ptime < aaf_mclk_gettime(aaf)) {
-			pr_debug("Packet dropped: PT in the past");
-			return 0;
-		}
-
-		aaf->prev_ptime = ptime;
 	}
 
 	hw_avail = snd_pcm_ioplug_hw_avail(io, aaf->hw_virt_ptr, io->appl_ptr);
@@ -950,6 +974,8 @@ static void aaf_dump(snd_pcm_ioplug_t *io, snd_output_t *out)
 			  aaf->t_uncertainty / NSEC_PER_USEC);
 	snd_output_printf(out, "  frames per AVTPDU: %lu\n",
 			  aaf->frames_per_pdu);
+	snd_output_printf(out, "  ptime tolerance: %d\n",
+			  aaf->ptime_tolerance / NSEC_PER_USEC);
 }
 
 static int aaf_hw_params(snd_pcm_ioplug_t *io,
