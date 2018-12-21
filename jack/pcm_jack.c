@@ -58,8 +58,6 @@ typedef struct {
 	bool xrun_detected;
 } snd_pcm_jack_t;
 
-static int snd_pcm_jack_stop(snd_pcm_ioplug_t *io);
-
 /* snd_pcm_ioplug_avail() was introduced after alsa-lib 1.1.6 */
 #if SND_LIB_VERSION < 0x10107
 static snd_pcm_uframes_t snd_pcm_ioplug_avail(const snd_pcm_ioplug_t *io,
@@ -277,9 +275,6 @@ static int snd_pcm_jack_prepare(snd_pcm_ioplug_t *io)
 		snd_pcm_sw_params_get_boundary(swparams, &jack->boundary);
 	}
 
-	/* deactivate jack connections if this is XRUN recovery */
-	snd_pcm_jack_stop(io);
-
 	if (io->stream == SND_PCM_STREAM_PLAYBACK)
 		pcm_poll_unblock_check(io); /* playback pcm initially accepts writes */
 	else
@@ -337,8 +332,14 @@ static int snd_pcm_jack_start(snd_pcm_ioplug_t *io)
 
 static int snd_pcm_jack_stop(snd_pcm_ioplug_t *io)
 {
+	(void)io;
+	return 0;
+}
+
+static int snd_pcm_jack_hw_free(snd_pcm_ioplug_t *io)
+{
 	snd_pcm_jack_t *jack = io->private_data;
-	
+
 	if (jack->activated) {
 		jack_deactivate(jack->client);
 		jack->activated = 0;
@@ -360,6 +361,7 @@ static snd_pcm_ioplug_callback_t jack_pcm_callback = {
 	.start = snd_pcm_jack_start,
 	.stop = snd_pcm_jack_stop,
 	.pointer = snd_pcm_jack_pointer,
+	.hw_free = snd_pcm_jack_hw_free,
 	.prepare = snd_pcm_jack_prepare,
 	.poll_revents = snd_pcm_jack_poll_revents,
 };
