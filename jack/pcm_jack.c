@@ -31,10 +31,6 @@
 
 #define MAX_PERIODS_MULTIPLE 64
 
-typedef enum _jack_format {
-	SND_PCM_JACK_FORMAT_RAW
-} snd_pcm_jack_format_t;
-
 typedef struct {
 	snd_pcm_ioplug_t io;
 
