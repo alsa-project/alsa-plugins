@@ -31,13 +31,21 @@
 
 #define MAX_PERIODS_MULTIPLE 64
 
+typedef struct snd_pcm_jack_port_list {
+	struct snd_pcm_jack_port_list *next;
+	/* will always be allocated with size of the string.
+	 * See snd_pcm_jack_port_list_add().
+	 */
+	char name[0];
+} snd_pcm_jack_port_list_t;
+
 typedef struct {
 	snd_pcm_ioplug_t io;
 
 	int fd;
 	int activated;		/* jack is activated? */
 
-	char **port_names;
+	snd_pcm_jack_port_list_t **port_names;
 	unsigned int num_ports;
 	snd_pcm_uframes_t boundary;
 	snd_pcm_uframes_t hw_ptr;
@@ -62,6 +70,29 @@ static snd_pcm_uframes_t snd_pcm_ioplug_avail(const snd_pcm_ioplug_t *io,
 	return io->buffer_size - snd_pcm_ioplug_hw_avail(io, hw_ptr, appl_ptr);
 }
 #endif
+
+/* adds one element to the head of the list */
+static int snd_pcm_jack_port_list_add(snd_pcm_jack_t *jack,
+				      const unsigned int channel,
+				      const char * const name)
+{
+	const size_t name_size = strlen(name) + 1;
+	const size_t elem_size = sizeof(snd_pcm_jack_port_list_t) + name_size;
+	snd_pcm_jack_port_list_t * const elem = calloc(1, elem_size);
+
+	if (elem == NULL)
+		return -ENOMEM;
+
+	/* Above it is guaranteed that elem->name is big enough for the size of
+	 * name because strlen(name) + 1 will be used to allocate the buffer.
+	 */
+	strcpy(elem->name, name);
+	elem->next = jack->port_names[channel];
+
+	jack->port_names[channel] = elem;
+
+	return 0;
+}
 
 static int pcm_poll_block_check(snd_pcm_ioplug_t *io)
 {
@@ -113,9 +144,19 @@ static void snd_pcm_jack_free(snd_pcm_jack_t *jack)
 	if (jack->port_names) {
 		unsigned int i;
 
-		for (i = 0; i < jack->num_ports; i++)
-			free(jack->port_names[i]);
+		for (i = 0; i < jack->num_ports; i++) {
+			snd_pcm_jack_port_list_t *port_elem =
+					jack->port_names[i];
+
+			while (port_elem != NULL) {
+				snd_pcm_jack_port_list_t *next_port_elem =
+						port_elem->next;
+				free(port_elem);
+				port_elem = next_port_elem;
+			}
+		}
 		free(jack->port_names);
+		jack->port_names = NULL;
 	}
 	if (jack->fd >= 0)
 		close(jack->fd);
@@ -298,17 +339,22 @@ static int snd_pcm_jack_prepare(snd_pcm_ioplug_t *io)
 	jack->activated = 1;
 
 	for (i = 0; i < io->channels && i < jack->num_ports; i++) {
-		if (jack->port_names[i]) {
+		const char * const own_port = jack_port_name(jack->ports[i]);
+		snd_pcm_jack_port_list_t *port_elem;
+
+		for (port_elem = jack->port_names[i]; port_elem != NULL;
+		     port_elem = port_elem->next) {
 			const char *src, *dst;
 			if (io->stream == SND_PCM_STREAM_PLAYBACK) {
-				src = jack_port_name(jack->ports[i]);
-				dst = jack->port_names[i];
+				src = own_port;
+				dst = port_elem->name;
 			} else {
-				src = jack->port_names[i];
-				dst = jack_port_name(jack->ports[i]);
+				src = port_elem->name;
+				dst = own_port;
 			}
 			if (jack_connect(jack->client, src, dst)) {
-				fprintf(stderr, "cannot connect %s to %s\n", src, dst);
+				fprintf(stderr, "cannot connect %s to %s\n",
+					src, dst);
 				return -EIO;
 			}
 		}
@@ -416,7 +462,7 @@ static int jack_set_hw_constraint(snd_pcm_jack_t *jack)
 static int parse_ports(snd_pcm_jack_t *jack, snd_config_t *conf)
 {
 	snd_config_iterator_t i, next;
-	char **ports = NULL;
+	snd_pcm_jack_port_list_t **ports = NULL;
 	unsigned int cnt = 0;
 	unsigned int channel;
 
@@ -431,7 +477,7 @@ static int parse_ports(snd_pcm_jack_t *jack, snd_config_t *conf)
 			continue;
 		cnt++;
 	}
-	jack->port_names = ports = calloc(cnt, sizeof(char*));
+	jack->port_names = ports = calloc(cnt, sizeof(jack->port_names[0]));
 	if (ports == NULL)
 		return -ENOMEM;
 	jack->num_ports = cnt;
@@ -439,13 +485,31 @@ static int parse_ports(snd_pcm_jack_t *jack, snd_config_t *conf)
 		snd_config_t *n = snd_config_iterator_entry(i);
 		const char *id;
 		const char *port;
+		int err;
 
 		if (snd_config_get_id(n, &id) < 0)
 			continue;
 		channel = atoi(id);
-		if (snd_config_get_string(n, &port) < 0)
+		if (snd_config_get_string(n, &port) >= 0) {
+			err = snd_pcm_jack_port_list_add(jack, channel, port);
+			if (err < 0)
+				return err;
+		} else if (snd_config_get_type(n) == SND_CONFIG_TYPE_COMPOUND) {
+			snd_config_iterator_t k, next_k;
+
+			snd_config_for_each(k, next_k, n) {
+				snd_config_t *m = snd_config_iterator_entry(k);
+
+				if (snd_config_get_string(m, &port) < 0)
+					continue;
+				err = snd_pcm_jack_port_list_add(jack, channel,
+								 port);
+				if (err < 0)
+					return err;
+			}
+		} else {
 			continue;
-		ports[channel] = port ? strdup(port) : NULL;
+		}
 	}
 
 	return 0;
