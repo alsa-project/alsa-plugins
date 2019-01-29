@@ -105,23 +105,25 @@ static int pcm_poll_unblock_check(snd_pcm_ioplug_t *io)
 
 static void snd_pcm_jack_free(snd_pcm_jack_t *jack)
 {
-	if (jack) {
+	if (jack == NULL)
+		return;
+
+	if (jack->client)
+		jack_client_close(jack->client);
+	if (jack->port_names) {
 		unsigned int i;
-		if (jack->client)
-			jack_client_close(jack->client);
-		if (jack->port_names) {
-			for (i = 0; i < jack->num_ports; i++)
-				free(jack->port_names[i]);
-			free(jack->port_names);
-		}
-		if (jack->fd >= 0)
-			close(jack->fd);
-		if (jack->io.poll_fd >= 0)
-			close(jack->io.poll_fd);
-		free(jack->areas);
-		free(jack->ports);
-		free(jack);
+
+		for (i = 0; i < jack->num_ports; i++)
+			free(jack->port_names[i]);
+		free(jack->port_names);
 	}
+	if (jack->fd >= 0)
+		close(jack->fd);
+	if (jack->io.poll_fd >= 0)
+		close(jack->io.poll_fd);
+	free(jack->areas);
+	free(jack->ports);
+	free(jack);
 }
 
 static int snd_pcm_jack_close(snd_pcm_ioplug_t *io)
@@ -418,31 +420,34 @@ static int parse_ports(snd_pcm_jack_t *jack, snd_config_t *conf)
 	unsigned int cnt = 0;
 	unsigned int channel;
 
-	if (conf) {
-		snd_config_for_each(i, next, conf) {
-			snd_config_t *n = snd_config_iterator_entry(i);
-			const char *id;
-			if (snd_config_get_id(n, &id) < 0)
-				continue;
-			cnt++;
-		}
-		jack->port_names = ports = calloc(cnt, sizeof(char*));
-		if (ports == NULL)
-			return -ENOMEM;
-		jack->num_ports = cnt;
-		snd_config_for_each(i, next, conf) {
-			snd_config_t *n = snd_config_iterator_entry(i);
-			const char *id;
-			const char *port;
+	if (conf == NULL)
+		return 0;
 
-			if (snd_config_get_id(n, &id) < 0)
-				continue;
-			channel = atoi(id);
-			if (snd_config_get_string(n, &port) < 0)
-				continue;
-			ports[channel] = port ? strdup(port) : NULL;
-		}
+	snd_config_for_each(i, next, conf) {
+		snd_config_t *n = snd_config_iterator_entry(i);
+		const char *id;
+
+		if (snd_config_get_id(n, &id) < 0)
+			continue;
+		cnt++;
 	}
+	jack->port_names = ports = calloc(cnt, sizeof(char*));
+	if (ports == NULL)
+		return -ENOMEM;
+	jack->num_ports = cnt;
+	snd_config_for_each(i, next, conf) {
+		snd_config_t *n = snd_config_iterator_entry(i);
+		const char *id;
+		const char *port;
+
+		if (snd_config_get_id(n, &id) < 0)
+			continue;
+		channel = atoi(id);
+		if (snd_config_get_string(n, &port) < 0)
+			continue;
+		ports[channel] = port ? strdup(port) : NULL;
+	}
+
 	return 0;
 }
 
