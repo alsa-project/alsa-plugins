@@ -237,7 +237,12 @@ AC_ARG_WITH(alsalconfdir,
 	[path where ALSA local add-on config files are stored]),
     alsalconfdir="$withval", alsalconfdir="")
 if test -z "$alsalconfdir"; then
-    alsalconfdir="/etc/alsa/conf.d"
+    eval dir="$sysconfdir"
+    case "$dir" in
+    /*) ;;
+    *) dir="$dir"
+    esac
+    alsalconfdir="$dir/alsa/conf.d"
 fi
 AC_DEFINE_UNQUOTED(ALSA_LCONF_DIR, "$alsalconfdir", [directory containing local ALSA add-on config files])
 ALSA_LCONF_DIR="$alsalconfdir"
