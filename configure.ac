@@ -211,7 +211,7 @@ if test -z "$alsadatadir"; then
     eval dir="$datadir"
     case "$dir" in
     /*) ;;
-    *) dir="$dir"
+    *) eval dir="$dir"
     esac
     alsadatadir="$dir/alsa"
 fi
