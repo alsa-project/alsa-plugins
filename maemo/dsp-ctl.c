@@ -93,6 +93,7 @@ static void dsp_ctl_close(snd_ctl_ext_t * ext)
 	snd_ctl_dsp_t *dsp_ctl = ext->private_data;
 	DENTER();
 	free(dsp_ctl->controls);
+	dsp_ctl->controls = NULL;
 	free_control_list(&(dsp_ctl->playback_devices));
 	free_control_list(&(dsp_ctl->recording_devices));
 //      free(dsp_ctl);

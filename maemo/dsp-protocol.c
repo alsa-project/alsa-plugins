@@ -194,7 +194,7 @@ int dsp_protocol_open_node(dsp_protocol_t * dsp_protocol, const char *device)
 	    mmap((void *)0, dsp_protocol->mmap_buffer_size,
 		 PROT_READ | PROT_WRITE, MAP_SHARED, dsp_protocol->fd, 0);
 
-	if (dsp_protocol->mmap_buffer == NULL) {
+	if (dsp_protocol->mmap_buffer == MAP_FAILED) {
 		report_dsp_protocol("Cannot mmap data buffer", dsp_protocol);
 		ret = -ENOMEM;
 		goto unlock;

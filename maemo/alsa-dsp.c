@@ -135,18 +135,18 @@ static snd_pcm_sframes_t alsa_dsp_transfer(snd_pcm_ioplug_t * io,
 	snd_pcm_alsa_dsp_t *alsa_dsp = io->private_data;
 	DENTER();
 	char *buf;
-	int words;
+	int bytes, words;
 	ssize_t result;
 
-	words = size * alsa_dsp->bytes_per_frame;
-	words /= 2;
-	DPRINT("***** Info: words %d size %lu bpf: %d\n", words, size,
-	       alsa_dsp->bytes_per_frame);
-	if (words > alsa_dsp->dsp_protocol->mmap_buffer_size) {
-		DERROR("Requested too much data transfer (playing only %d)\n",
-		       alsa_dsp->dsp_protocol->mmap_buffer_size);
-		words = alsa_dsp->dsp_protocol->mmap_buffer_size;
+	bytes = size * alsa_dsp->bytes_per_frame;
+	DPRINT("***** Info: samples %lu * bpf %d => bytes %d\n",
+	       size, alsa_dsp->bytes_per_frame, bytes);
+	if (bytes > alsa_dsp->dsp_protocol->mmap_buffer_size) {
+		DERROR("Requested too much data transfer (requested %d, playing only %d)\n",
+		       bytes, alsa_dsp->dsp_protocol->mmap_buffer_size);
+		bytes = alsa_dsp->dsp_protocol->mmap_buffer_size;
 	}
+	words = bytes / 2;
 	if (alsa_dsp->dsp_protocol->state != STATE_PLAYING) {
 		DPRINT("I did nothing - No start sent\n");
 		alsa_dsp_start(io);
