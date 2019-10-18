@@ -664,6 +664,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 			if (snd_config_get_string(n, &server) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
+			} else if (!*server) {
+				server = NULL;
 			}
 			continue;
 		}
@@ -671,6 +673,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 			if (snd_config_get_string(n, &device) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
+			} else if (!*device) {
+				device = NULL;
 			}
 			continue;
 		}
@@ -678,6 +682,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 			if (snd_config_get_string(n, &source) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
+			} else if (!*source) {
+				source = NULL;
 			}
 			continue;
 		}
@@ -685,6 +691,8 @@ SND_CTL_PLUGIN_DEFINE_FUNC(pulse)
 			if (snd_config_get_string(n, &sink) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
+			} else if (!*sink) {
+				sink = NULL;
 			}
 			continue;
 		}

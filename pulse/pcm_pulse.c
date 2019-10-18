@@ -1069,6 +1069,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 			if (snd_config_get_string(n, &server) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
+			} else if (!*server) {
+				server = NULL;
 			}
 			continue;
 		}
@@ -1076,6 +1078,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 			if (snd_config_get_string(n, &device) < 0) {
 				SNDERR("Invalid type for %s", id);
 				return -EINVAL;
+			} else if (!*device) {
+				device = NULL;
 			}
 			continue;
 		}
@@ -1091,6 +1095,8 @@ SND_PCM_PLUGIN_DEFINE_FUNC(pulse)
 			if (snd_config_get_string(n, &fallback_name) < 0) {
 				SNDERR("Invalid value for %s", id);
 				return -EINVAL;
+			} else if (!*fallback_name) {
+				fallback_name = NULL;
 			}
 			continue;
 		}
