@@ -21,6 +21,10 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 
+#define UPMIX_PCM_FORMAT	SND_PCM_FORMAT_S16
+
+typedef short upmix_sample_t;
+
 typedef struct snd_pcm_upmix snd_pcm_upmix_t;
 
 typedef void (*upmixer_t)(snd_pcm_upmix_t *mix,
@@ -38,9 +42,10 @@ struct snd_pcm_upmix {
 	upmixer_t upmix;
 	unsigned int curpos;
 	int delay;
-	short *delayline[2];
+	upmix_sample_t *delayline[2];
 };
 
+/* Get the current address of a channel area */
 static inline void *area_addr(const snd_pcm_channel_area_t *area,
 			      snd_pcm_uframes_t offset)
 {
@@ -48,9 +53,10 @@ static inline void *area_addr(const snd_pcm_channel_area_t *area,
 	return (char *) area->addr + bitofs / 8;
 }
 
+/* Convert step size in bits to steps of samples */
 static inline unsigned int area_step(const snd_pcm_channel_area_t *area)
 {
-	return area->step / 8;
+	return area->step / 8 / sizeof(upmix_sample_t);
 }
 
 /* Delayed copy SL & SR */
@@ -61,36 +67,37 @@ static void delayed_copy(snd_pcm_upmix_t *mix,
 			 snd_pcm_uframes_t src_offset,
 			 unsigned int size)
 {
-	unsigned int i, p, delay, curpos, dst_step, src_step;
-	short *dst, *src;
+	unsigned int channel, p, delay, curpos, dst_step, src_step;
+	upmix_sample_t *dst, *src;
 
 	if (! mix->delay_ms) {
 		snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-				   2, size, SND_PCM_FORMAT_S16);
+				   2, size, UPMIX_PCM_FORMAT);
 		return;
 	}
 
 	delay = mix->delay;
 	if (delay > size)
 		delay = size;
-	for (i = 0; i < 2; i++) {
-		dst = (short *)area_addr(dst_areas + i, dst_offset);
-		dst_step = area_step(dst_areas + i) / 2;
+
+	for (channel = 0; channel < 2; channel++) {
+		dst = (upmix_sample_t *)area_addr(&dst_areas[channel], dst_offset);
+		dst_step = area_step(&dst_areas[channel]);
 		curpos = mix->curpos;
 		for (p = 0; p < delay; p++) {
-			*dst = mix->delayline[i][curpos];
+			*dst = mix->delayline[channel][curpos];
 			dst += dst_step;
 			curpos = (curpos + 1) % mix->delay;
 		}
-		snd_pcm_area_copy(dst_areas + i, dst_offset + delay,
-				  src_areas + i, src_offset,
-				  size - delay, SND_PCM_FORMAT_S16);
-		src = (short *)area_addr(src_areas + i,
-					 src_offset + size - delay);
-		src_step = area_step(src_areas + i) / 2;
+		snd_pcm_area_copy(&dst_areas[channel], dst_offset + delay,
+				  &src_areas[channel], src_offset,
+				  size - delay, UPMIX_PCM_FORMAT);
+		src = (upmix_sample_t *)area_addr(&src_areas[channel],
+						  src_offset + size - delay);
+		src_step = area_step(&src_areas[channel]);
 		curpos = mix->curpos;
 		for (p = 0; p < delay; p++) {
-			mix->delayline[i][curpos] = *src;
+			mix->delayline[channel][curpos] = *src;
 			src += src_step;
 			curpos = (curpos + 1) % mix->delay;
 		}
@@ -103,25 +110,25 @@ static void average_copy(const snd_pcm_channel_area_t *dst_areas,
 			 snd_pcm_uframes_t dst_offset,
 			 const snd_pcm_channel_area_t *src_areas,
 			 snd_pcm_uframes_t src_offset,
-			 unsigned int nchns,
 			 unsigned int size)
 {
-	short *dst[2], *src[2];
-	unsigned int i, dst_step[2], src_step[2];
+	static const unsigned int nchns = 2;
+	upmix_sample_t *dst[nchns], *src[2];
+	unsigned int channel, dst_step[nchns], src_step[2];
 
-	for (i = 0; i < nchns; i++) {
-		dst[i] = (short *)area_addr(dst_areas + i, dst_offset);
-		dst_step[i] = area_step(dst_areas + i) / 2;
+	for (channel = 0; channel < nchns; channel++) {
+		dst[channel] = (upmix_sample_t *)area_addr(&dst_areas[channel], dst_offset);
+		dst_step[channel] = area_step(&dst_areas[channel]);
 	}
-	for (i = 0; i < 2; i++) {
-		src[i] = (short *)area_addr(src_areas + i, src_offset);
-		src_step[i] = area_step(src_areas + i) / 2;
+	for (channel = 0; channel < 2; channel++) {
+		src[channel] = (upmix_sample_t *)area_addr(&src_areas[channel], src_offset);
+		src_step[channel] = area_step(&src_areas[channel]);
 	}
 	while (size--) {
-		short val = (*src[0] >> 1) + (*src[1] >> 1);
-		for (i = 0; i < nchns; i++) {
-			*dst[i] = val;
-			dst[i] += dst_step[i];
+		upmix_sample_t val = (*src[0] >> 1) + (*src[1] >> 1);
+		for (channel = 0; channel < nchns; channel++) {
+			*dst[channel] = val;
+			dst[channel] += dst_step[channel];
 		}
 		src[0] += src_step[0];
 		src[1] += src_step[1];
@@ -135,11 +142,11 @@ static void upmix_1_to_71(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			  snd_pcm_uframes_t src_offset,
 			  snd_pcm_uframes_t size)
 {
-	int i;
-	for (i = 0; i < 8; i++)
-		snd_pcm_area_copy(dst_areas + i, dst_offset,
+	int channel;
+	for (channel = 0; channel < 8; channel++)
+		snd_pcm_area_copy(&dst_areas[channel], dst_offset,
 				  src_areas, src_offset,
-				  size, SND_PCM_FORMAT_S16);
+				  size, UPMIX_PCM_FORMAT);
 }
 
 static void upmix_1_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
@@ -149,11 +156,11 @@ static void upmix_1_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			  snd_pcm_uframes_t src_offset,
 			  snd_pcm_uframes_t size)
 {
-	int i;
-	for (i = 0; i < 6; i++)
-		snd_pcm_area_copy(dst_areas + i, dst_offset,
+	int channel;
+	for (channel = 0; channel < 6; channel++)
+		snd_pcm_area_copy(&dst_areas[channel], dst_offset,
 				  src_areas, src_offset,
-				  size, SND_PCM_FORMAT_S16);
+				  size, UPMIX_PCM_FORMAT);
 }
 
 static void upmix_1_to_40(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
@@ -163,11 +170,11 @@ static void upmix_1_to_40(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			  snd_pcm_uframes_t src_offset,
 			  snd_pcm_uframes_t size)
 {
-	int i;
-	for (i = 0; i < 4; i++)
-		snd_pcm_area_copy(dst_areas + i, dst_offset,
+	int channel;
+	for (channel = 0; channel < 4; channel++)
+		snd_pcm_area_copy(&dst_areas[channel], dst_offset,
 				  src_areas, src_offset,
-				  size, SND_PCM_FORMAT_S16);
+				  size, UPMIX_PCM_FORMAT);
 }
 
 static void upmix_2_to_71(snd_pcm_upmix_t *mix,
@@ -178,13 +185,11 @@ static void upmix_2_to_71(snd_pcm_upmix_t *mix,
 			  snd_pcm_uframes_t size)
 {
 	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-			   2, size, SND_PCM_FORMAT_S16);
-	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset,
-		     size);
-	average_copy(dst_areas + 4, dst_offset, src_areas, src_offset,
-		     2, size);
+			   2, size, UPMIX_PCM_FORMAT);
+	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset, size);
+	average_copy(dst_areas + 4, dst_offset, src_areas, src_offset, size);
 	snd_pcm_areas_copy(dst_areas + 6, dst_offset, src_areas, src_offset,
-			   2, size, SND_PCM_FORMAT_S16);
+			   2, size, UPMIX_PCM_FORMAT);
 	
 }
 
@@ -196,11 +201,9 @@ static void upmix_2_to_51(snd_pcm_upmix_t *mix,
 			  snd_pcm_uframes_t size)
 {
 	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-			   2, size, SND_PCM_FORMAT_S16);
-	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset,
-		     size);
-	average_copy(dst_areas + 4, dst_offset, src_areas, src_offset,
-		     2, size);
+			   2, size, UPMIX_PCM_FORMAT);
+	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset, size);
+	average_copy(dst_areas + 4, dst_offset, src_areas, src_offset, size);
 }
 
 static void upmix_2_to_40(snd_pcm_upmix_t *mix,
@@ -211,9 +214,8 @@ static void upmix_2_to_40(snd_pcm_upmix_t *mix,
 			  snd_pcm_uframes_t size)
 {
 	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-			   2, size, SND_PCM_FORMAT_S16);
-	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset,
-		     size);
+			   2, size, UPMIX_PCM_FORMAT);
+	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset, size);
 }
 
 static void upmix_3_to_51(snd_pcm_upmix_t *mix,
@@ -224,11 +226,10 @@ static void upmix_3_to_51(snd_pcm_upmix_t *mix,
 			  snd_pcm_uframes_t size)
 {
 	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-			   2, size, SND_PCM_FORMAT_S16);
-	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset,
-		     size);
+			   2, size, UPMIX_PCM_FORMAT);
+	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset, size);
 	snd_pcm_areas_copy(dst_areas + 4, dst_offset, src_areas, src_offset,
-			   2, size, SND_PCM_FORMAT_S16);
+			   2, size, UPMIX_PCM_FORMAT);
 }
 
 static void upmix_3_to_40(snd_pcm_upmix_t *mix,
@@ -239,9 +240,8 @@ static void upmix_3_to_40(snd_pcm_upmix_t *mix,
 			  snd_pcm_uframes_t size)
 {
 	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-			   2, size, SND_PCM_FORMAT_S16);
-	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset,
-		     size);
+			   2, size, UPMIX_PCM_FORMAT);
+	delayed_copy(mix, dst_areas + 2, dst_offset, src_areas, src_offset, size);
 }
 
 static void upmix_4_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
@@ -252,9 +252,9 @@ static void upmix_4_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			  snd_pcm_uframes_t size)
 {
 	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-			   4, size, SND_PCM_FORMAT_S16);
+			   4, size, UPMIX_PCM_FORMAT);
 	snd_pcm_areas_copy(dst_areas + 4, dst_offset, src_areas, src_offset,
-			   2, size, SND_PCM_FORMAT_S16);
+			   2, size, UPMIX_PCM_FORMAT);
 }
 
 static void upmix_4_to_40(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
@@ -265,7 +265,7 @@ static void upmix_4_to_40(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			  snd_pcm_uframes_t size)
 {
 	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-			   4, size, SND_PCM_FORMAT_S16);
+			   4, size, UPMIX_PCM_FORMAT);
 }
 
 static void upmix_5_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
@@ -276,9 +276,9 @@ static void upmix_5_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			  snd_pcm_uframes_t size)
 {
 	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-			   5, size, SND_PCM_FORMAT_S16);
+			   5, size, UPMIX_PCM_FORMAT);
 	snd_pcm_area_copy(dst_areas + 5, dst_offset, src_areas + 4, src_offset,
-			  size, SND_PCM_FORMAT_S16);
+			  size, UPMIX_PCM_FORMAT);
 }
 
 static void upmix_6_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
@@ -289,7 +289,7 @@ static void upmix_6_to_51(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			  snd_pcm_uframes_t size)
 {
 	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-			   6, size, SND_PCM_FORMAT_S16);
+			   6, size, UPMIX_PCM_FORMAT);
 }
 
 static void upmix_8_to_71(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
@@ -300,7 +300,7 @@ static void upmix_8_to_71(snd_pcm_upmix_t *mix ATTRIBUTE_UNUSED,
 			  snd_pcm_uframes_t size)
 {
 	snd_pcm_areas_copy(dst_areas, dst_offset, src_areas, src_offset,
-			   8, size, SND_PCM_FORMAT_S16);
+			   8, size, UPMIX_PCM_FORMAT);
 }
 
 static const upmixer_t do_upmix[8][3] = {
@@ -334,7 +334,7 @@ static int upmix_init(snd_pcm_extplug_t *ext)
 	int ctype, stype;
 
 	switch (ext->slave_channels) {
-		case	6:
+		case 6:
 			stype = 1;
 			break;
 		case 8:
@@ -354,8 +354,8 @@ static int upmix_init(snd_pcm_extplug_t *ext)
 		free(mix->delayline[0]);
 		free(mix->delayline[1]);
 		mix->delay = ext->rate * mix->delay_ms / 1000;
-		mix->delayline[0] = calloc(2, mix->delay);
-		mix->delayline[1] = calloc(2, mix->delay);
+		mix->delayline[0] = calloc(sizeof(upmix_sample_t), mix->delay);
+		mix->delayline[1] = calloc(sizeof(upmix_sample_t), mix->delay);
 		if (! mix->delayline[0] || ! mix->delayline[1])
 			return -ENOMEM;
 		mix->curpos = 0;
