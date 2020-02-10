@@ -516,9 +516,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(upmix)
 						     SND_PCM_EXTPLUG_HW_CHANNELS,
 						     3, chlist);
 	snd_pcm_extplug_set_param(&mix->ext, SND_PCM_EXTPLUG_HW_FORMAT,
-				  SND_PCM_FORMAT_S16);
+				  UPMIX_PCM_FORMAT);
 	snd_pcm_extplug_set_slave_param(&mix->ext, SND_PCM_EXTPLUG_HW_FORMAT,
-					SND_PCM_FORMAT_S16);
+					UPMIX_PCM_FORMAT);
 
 	*pcmp = mix->ext.pcm;
 	return 0;
