@@ -154,6 +154,8 @@ static int write_out_pending(snd_pcm_ioplug_t *io, struct a52_ctx *rec)
 		if (err < 0) {
 			if (err == -EPIPE)
 				io->state = SND_PCM_STATE_XRUN;
+			if (err == -EAGAIN)
+				break;
 			return err;
 		} else if (! err)
 			break;
@@ -312,7 +314,7 @@ static snd_pcm_sframes_t a52_transfer(snd_pcm_ioplug_t *io,
 
 	do {
 		err = fill_data(io, areas, offset, size, interleaved);
-		if (err < 0)
+		if (err <= 0)
 			break;
 		offset += (unsigned int)err;
 		size -= (unsigned int)err;
