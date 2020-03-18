@@ -144,7 +144,7 @@ static void convert_data(struct a52_ctx *rec)
 /* write pending encoded data to the slave pcm */
 static int write_out_pending(snd_pcm_ioplug_t *io, struct a52_ctx *rec)
 {
-	int err, ofs = 0;
+	int err, ofs = (rec->avctx->frame_size - rec->remain) * 4;
 
 	if (! rec->remain)
 		return 0;
@@ -163,8 +163,6 @@ static int write_out_pending(snd_pcm_ioplug_t *io, struct a52_ctx *rec)
 			ofs += (rec->remain - err) * 4;
 		rec->remain -= err;
 	}
-	if (rec->remain && ofs)
-		memmove(rec->outbuf, rec->outbuf + ofs, rec->remain * 4);
 	return 0;
 }
 
@@ -256,6 +254,12 @@ static int fill_data(snd_pcm_ioplug_t *io,
 
 	if ((err = write_out_pending(io, rec)) < 0)
 		return err;
+
+	/* If there are still frames left in outbuf, we can't
+	 * accept a full a52 frame, because this would overwrite
+	 * the frames in outbuf. */
+	if (rec->remain && len)
+		len--;
 
 	if (size > len)
 		size = len;
