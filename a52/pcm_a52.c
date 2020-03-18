@@ -325,21 +325,18 @@ static snd_pcm_sframes_t a52_transfer(snd_pcm_ioplug_t *io,
 /*
  * pointer callback
  *
- * Calculate the current position from the delay of slave PCM
+ * Calculate the current position from the available frames of slave PCM
  */
 static snd_pcm_sframes_t a52_pointer(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
-	snd_pcm_sframes_t delay;
+	snd_pcm_sframes_t avail;
 	snd_pcm_state_t state;
-	int err;
 
 	state = snd_pcm_state(rec->slave);
 	switch (state) {
 	case SND_PCM_STATE_RUNNING:
 	case SND_PCM_STATE_DRAINING:
-		if ((err = snd_pcm_delay(rec->slave, &delay)) < 0)
-			return err;
 		break;
 	case SND_PCM_STATE_XRUN:
 	case SND_PCM_STATE_SUSPENDED:
@@ -348,16 +345,25 @@ static snd_pcm_sframes_t a52_pointer(snd_pcm_ioplug_t *io)
 		return 0;
 	}
 
-	if (delay < 0 || delay >= (snd_pcm_sframes_t)rec->slave_buffer_size)
-		delay = 0;
-	delay = (snd_pcm_sframes_t)io->appl_ptr - delay;
-	if (delay < 0) {
-		delay += io->buffer_size;
-		if (delay < 0)
-			delay = 0;
+	avail = 0;
+
+	/* Write what we have from outbuf. */
+	write_out_pending(io, rec);
+
+	/* If there is anything remaining in outbuf, we can't
+	 * accept any full packets. */
+	if (rec->remain == 0)
+	{
+		/* Round the slave frames to multiples of the packet size. */
+		avail += (snd_pcm_avail_update(rec->slave) / rec->avctx->frame_size) * rec->avctx->frame_size;
 	}
-	delay %= io->buffer_size;
-	return delay;
+
+	if (avail < 0)
+		avail = 0;
+	else if (avail >= io->buffer_size)
+		avail = io->buffer_size - 1;
+
+	return (io->appl_ptr + avail) % io->buffer_size;
 }
 
 /* set up the fixed parameters of slave PCM hw_parmas */
