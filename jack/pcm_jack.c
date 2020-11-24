@@ -51,6 +51,7 @@ typedef struct {
 	snd_pcm_uframes_t hw_ptr;
 	unsigned int sample_bits;
 	snd_pcm_uframes_t min_avail;
+	int use_period_alignment;
 
 	snd_pcm_channel_area_t *areas;
 
@@ -450,8 +451,9 @@ static int jack_set_hw_constraint(snd_pcm_jack_t *jack)
 						   jack->num_ports, jack->num_ports)) < 0 ||
 	    (err = snd_pcm_ioplug_set_param_minmax(&jack->io, SND_PCM_IOPLUG_HW_RATE,
 						   rate, rate)) < 0 ||
-	    (err = snd_pcm_ioplug_set_param_list(&jack->io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
-						 ARRAY_SIZE(psize_list), psize_list)) < 0 ||
+	    (err = jack->use_period_alignment ?
+				snd_pcm_ioplug_set_param_list(&jack->io, SND_PCM_IOPLUG_HW_PERIOD_BYTES, ARRAY_SIZE(psize_list), psize_list) :
+				snd_pcm_ioplug_set_param_minmax(&jack->io, SND_PCM_IOPLUG_HW_PERIOD_BYTES, 128, 64*1024) ) < 0 ||
 	    (err = snd_pcm_ioplug_set_param_minmax(&jack->io, SND_PCM_IOPLUG_HW_PERIODS,
 						   2, 64)) < 0)
 		return err;
@@ -532,6 +534,7 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 			     const char *client_name,
 			     snd_config_t *playback_conf,
 			     snd_config_t *capture_conf,
+			     int use_period_alignment,
 			     snd_pcm_stream_t stream, int mode)
 {
 	snd_pcm_jack_t *jack;
@@ -547,6 +550,7 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 
 	jack->fd = -1;
 	jack->io.poll_fd = -1;
+	jack->use_period_alignment = use_period_alignment;
 
 	err = parse_ports(jack, stream == SND_PCM_STREAM_PLAYBACK ?
 			  playback_conf : capture_conf);
@@ -635,6 +639,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(jack)
 	snd_config_t *capture_conf = NULL;
 	const char *client_name = NULL;
 	int err;
+	int align_jack_period = 1; /*by default we allow only JACK aligned period size*/
 	
 	snd_config_for_each(i, next, conf) {
 		snd_config_t *n = snd_config_iterator_entry(i);
@@ -663,11 +668,18 @@ SND_PCM_PLUGIN_DEFINE_FUNC(jack)
 			capture_conf = n;
 			continue;
 		}
+		if (strcmp(id, "align_psize") == 0) {
+			err = snd_config_get_bool(n);
+			if (err < 0)
+				return err;
+			align_jack_period = err ? 1 : 0;
+			continue;
+		}
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
 	}
 
-	err = snd_pcm_jack_open(pcmp, name, client_name, playback_conf, capture_conf, stream, mode);
+	err = snd_pcm_jack_open(pcmp, name, client_name, playback_conf, capture_conf, align_jack_period, stream, mode);
 
 	return err;
 }
