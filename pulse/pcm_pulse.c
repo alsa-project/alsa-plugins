@@ -522,16 +522,22 @@ static snd_pcm_sframes_t pulse_read(snd_pcm_ioplug_t * io,
 		if (frag_length == 0)
 			break;
 
-		src_buf = (char *) src_buf + pcm->offset;
-		frag_length -= pcm->offset;
+		if (src_buf) {
+			src_buf = (char *) src_buf + pcm->offset;
+			frag_length -= pcm->offset;
 
-		if (frag_length > remain_size) {
-			pcm->offset += remain_size;
-			frag_length = remain_size;
-		} else
-			pcm->offset = 0;
+			if (frag_length > remain_size) {
+				pcm->offset += remain_size;
+				frag_length = remain_size;
+			} else
+				pcm->offset = 0;
 
-		memcpy(dst_buf, src_buf, frag_length);
+			memcpy(dst_buf, src_buf, frag_length);
+		} else {
+			/* If there is a hole in the stream, generate silence. */
+			int sample_size = snd_pcm_format_physical_width(io->format) / 8;
+			snd_pcm_format_set_silence(io->format, dst_buf, frag_length / sample_size);
+		}
 
 		if (pcm->offset == 0)
 			pa_stream_drop(pcm->stream);
