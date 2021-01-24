@@ -20,7 +20,9 @@
  *
  */
 
+#define _GNU_SOURCE
 #include <stdbool.h>
+#include <errno.h>
 #include <byteswap.h>
 #include <sys/shm.h>
 #include <sys/types.h>
@@ -600,12 +602,16 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 		return -EINVAL;
 	}
 
-	if (client_name == NULL)
+	if (client_name == NULL) {
+		const char *pname = program_invocation_short_name;
+		if (!pname[0]) {
+			pname = "alsa-jack";
+		}
 		err = snprintf(jack_client_name, sizeof(jack_client_name),
-			       "alsa-jack.%s%s.%d.%d", name,
+			       "%s.%s.%d.%d", pname,
 			       stream == SND_PCM_STREAM_PLAYBACK ? "P" : "C",
 			       getpid(), num++);
-	else
+	} else
 		err = snprintf(jack_client_name, sizeof(jack_client_name),
 			       "%s", client_name);
 
