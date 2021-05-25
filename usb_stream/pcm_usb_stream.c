@@ -50,9 +50,8 @@
 
 #define FRAME_SIZE 6
 
-#define LCARD 32
 struct user_usb_stream {
-	char			card[LCARD];
+	int			card;
 	unsigned		use;
 	struct usb_stream	*s;
 	void			*write_area;
@@ -79,14 +78,14 @@ typedef struct {
 static struct user_usb_stream *uus;
 static pthread_mutex_t uus_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static struct user_usb_stream *get_uus(const char *card)
+static struct user_usb_stream *get_uus(int card)
 {
 	pthread_mutex_lock(&uus_mutex);
 
 	struct user_usb_stream **l_uus = &uus,
 				*r_uus = NULL;
 	while (*l_uus) {
-		if (strcmp((*l_uus)->card, card) == 0) {
+		if ((*l_uus)->card == card) {
 			r_uus = *l_uus;
 			r_uus->use++;
 			goto unlock;
@@ -96,7 +95,7 @@ static struct user_usb_stream *get_uus(const char *card)
 	r_uus = calloc(1, sizeof(*r_uus));
 	if (r_uus) {
 		r_uus->use = 1;
-		strcpy(r_uus->card, card);
+		r_uus->card = card;
 		*l_uus = r_uus;
 	}
 
@@ -399,7 +398,7 @@ static int us_set_hw_constraint(snd_pcm_us_t *us)
 }
 
 static int snd_pcm_us_open(snd_pcm_t **pcmp, const char *name,
-				   const char *card,
+				   int card,
 				   snd_pcm_stream_t stream, int mode,
 				   snd_pcm_uframes_t period_size,
 				   unsigned int rate)
@@ -408,15 +407,12 @@ static int snd_pcm_us_open(snd_pcm_t **pcmp, const char *name,
 	int err;
 	char us_name[32];
 
-	if (strlen(card) >= LCARD)
-		return -EINVAL;
-
 	assert(pcmp);
 	us = calloc(1, sizeof(*us));
 	if (!us)
 		return -ENOMEM;
 
-	if (snprintf(us_name, sizeof(us_name), "hw:%s", card)
+	if (snprintf(us_name, sizeof(us_name), "hw:%d", card)
 	    >= (int)sizeof(us_name)) {
 		fprintf(stderr, "%s: WARNING: USB_STREAM client name '%s' truncated to %d characters, might not be unique\n",
 			__func__, us_name, (int)strlen(us_name));
@@ -469,8 +465,7 @@ static int snd_pcm_us_open(snd_pcm_t **pcmp, const char *name,
 SND_PCM_PLUGIN_DEFINE_FUNC(usb_stream)
 {
 	snd_config_iterator_t i, next;
-	const char *card;
-	int err;
+	int err, card = -1;
 	long period_size = 0, rate = 0;
 	
 	snd_config_for_each(i, next, conf) {
@@ -482,11 +477,11 @@ SND_PCM_PLUGIN_DEFINE_FUNC(usb_stream)
 		if (strcmp(id, "comment") == 0 || strcmp(id, "type") == 0)
 			continue;
 		if (strcmp(id, "card") == 0) {
-			if (snd_config_get_type(n) != SND_CONFIG_TYPE_STRING) {
-				SNDERR("Invalid type for %s", id);
+			card = snd_config_get_card(n);
+			if (card < 0) {
+				SNDERR("Invalid card '%s'", id);
 				return -EINVAL;
 			}
-			snd_config_get_string(n, &card);
 			continue;
 		}
 		if (strcmp(id, "period_size") == 0) {
