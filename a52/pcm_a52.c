@@ -111,24 +111,34 @@ static int do_encode(struct a52_ctx *rec)
 		.data = rec->outbuf + 8,
 		.size = rec->outbuf_size - 8
 	};
-	int got_frame;
+	int ret, got_frame;
 
-	avcodec_encode_audio2(rec->avctx, &pkt, rec->frame, &got_frame);
+	ret = avcodec_encode_audio2(rec->avctx, &pkt, rec->frame, &got_frame);
+	if (ret < 0)
+		return -EINVAL;
+
 	return pkt.size;
 }
 #else
 static int do_encode(struct a52_ctx *rec)
 {
-	return avcodec_encode_audio(rec->avctx, rec->outbuf + 8,
+	int ret = avcodec_encode_audio(rec->avctx, rec->outbuf + 8,
 				    rec->outbuf_size - 8,
 				    rec->inbuf);
+	if (ret < 0)
+		return -EINVAL;
+
+	return ret;
 }
 #endif
 
 /* convert the PCM data to A52 stream in IEC958 */
-static void convert_data(struct a52_ctx *rec)
+static int convert_data(struct a52_ctx *rec)
 {
 	int out_bytes = do_encode(rec);
+
+	if (out_bytes < 0)
+		return out_bytes;
 
 	rec->outbuf[0] = 0xf8; /* sync words */
 	rec->outbuf[1] = 0x72;
@@ -145,6 +155,8 @@ static void convert_data(struct a52_ctx *rec)
 	       rec->outbuf_size - 8 - out_bytes);
 	rec->remain = rec->outbuf_size / 4;
 	rec->filled = 0;
+
+	return 0;
 }
 
 /* write pending encoded data to the slave pcm */
@@ -204,7 +216,9 @@ static int a52_drain(snd_pcm_ioplug_t *io)
 			memset(rec->inbuf + rec->filled * io->channels, 0,
 			       (rec->avctx->frame_size - rec->filled) * io->channels * 2);
 		}
-		convert_data(rec);
+		err = convert_data(rec);
+		if (err < 0)
+			return err;
 	}
 	err = write_out_pending(io, rec);
 	if (err < 0)
@@ -303,7 +317,9 @@ static int fill_data(snd_pcm_ioplug_t *io,
 	}
 	rec->filled += size;
 	if (rec->filled == rec->avctx->frame_size) {
-		convert_data(rec);
+		err = convert_data(rec);
+		if (err < 0)
+			return err;
 		write_out_pending(io, rec);
 	}
 	return (int)size;
