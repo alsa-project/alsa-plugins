@@ -62,6 +62,12 @@
 #define AV_CODEC_ID_AC3 CODEC_ID_AC3
 #endif
 
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(56, 56, 0)
+#ifndef AV_INPUT_BUFFER_PADDING_SIZE
+#define AV_INPUT_BUFFER_PADDING_SIZE   FF_INPUT_BUFFER_PADDING_SIZE
+#endif
+#endif
+
 #if LIBAVCODEC_VERSION_INT < 0x371c01
 #define av_frame_alloc avcodec_alloc_frame
 #define av_frame_free avcodec_free_frame
@@ -623,9 +629,10 @@ static int a52_prepare(snd_pcm_ioplug_t *io)
 		return -EINVAL;
 
 	rec->outbuf_size = rec->avctx->frame_size * 4;
-	rec->outbuf = malloc(rec->outbuf_size);
+	rec->outbuf = malloc(rec->outbuf_size + AV_INPUT_BUFFER_PADDING_SIZE);
 	if (! rec->outbuf)
 		return -ENOMEM;
+	memset(rec->outbuf + rec->outbuf_size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
 
 	if (alloc_input_buffer(io))
 		return -ENOMEM;
