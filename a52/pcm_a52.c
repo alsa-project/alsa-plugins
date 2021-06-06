@@ -44,6 +44,11 @@
 #define USE_AVCODEC_FRAME
 #endif
 
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 93, 0)
+#include <libavcodec/packet.h>
+#define USE_AVCODEC_PACKET_ALLOC
+#endif
+
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(54, 0, 0)
 #ifndef AV_CH_LAYOUT_STEREO
 #define AV_CH_LAYOUT_STEREO	CH_LAYOUT_STEREO
@@ -92,6 +97,9 @@ struct a52_ctx {
 	unsigned int slave_period_size;
 	unsigned int slave_buffer_size;
 	snd_pcm_hw_params_t *hw_params;
+#ifdef USE_AVCODEC_PACKET_ALLOC
+	AVPacket *pkt;
+#endif
 #ifdef USE_AVCODEC_FRAME
 	AVFrame *frame;
 	int is_planar;
@@ -104,7 +112,26 @@ struct a52_ctx {
 #define use_planar(rec)		0
 #endif
 
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(53, 34, 0)
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 93, 0)
+static int do_encode(struct a52_ctx *rec)
+{
+	AVPacket *pkt = rec->pkt;
+	int ret;
+
+	ret = avcodec_send_frame(rec->avctx, rec->frame);
+	if (ret < 0)
+		return -EINVAL;
+	ret = avcodec_receive_packet(rec->avctx, pkt);
+	if (ret < 0)
+		return -EINVAL;
+
+	if (pkt->size > rec->outbuf_size - 8)
+		return -EINVAL;
+	memcpy(rec->outbuf + 8, pkt->data, pkt->size);
+
+	return pkt->size;
+}
+#elif LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(53, 34, 0)
 static int do_encode(struct a52_ctx *rec)
 {
 	AVPacket pkt = {
@@ -558,6 +585,9 @@ static void a52_free(struct a52_ctx *rec)
 #endif
 #endif
 
+#ifdef USE_AVCODEC_PACKET_ALLOC
+	av_packet_free(&rec->pkt);
+#endif
 	free(rec->inbuf);
 	rec->inbuf = NULL;
 	free(rec->outbuf);
@@ -603,6 +633,12 @@ static int alloc_input_buffer(snd_pcm_ioplug_t *io)
 			     io->channels, rec->avctx->frame_size,
 			     rec->avctx->sample_fmt, 0) < 0)
 		return -ENOMEM;
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 93, 0)
+	rec->frame->extended_data = rec->frame->data;
+	rec->frame->format = rec->avctx->sample_fmt;
+	rec->frame->channels = rec->avctx->channels;
+	rec->frame->channel_layout = rec->avctx->channel_layout;
+#endif
 	rec->frame->nb_samples = rec->avctx->frame_size;
 	rec->inbuf = (short *)rec->frame->data[0];
 #else
@@ -643,6 +679,12 @@ static int a52_prepare(snd_pcm_ioplug_t *io)
 #endif
 	if (err < 0)
 		return -EINVAL;
+
+#ifdef USE_AVCODEC_PACKET_ALLOC
+	rec->pkt = av_packet_alloc();
+	if (!rec->pkt)
+		return -ENOMEM;
+#endif
 
 	rec->outbuf_size = rec->avctx->frame_size * 4;
 	rec->outbuf = malloc(rec->outbuf_size + AV_INPUT_BUFFER_PADDING_SIZE);
