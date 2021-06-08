@@ -1004,7 +1004,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 #ifndef USE_AVCODEC_FRAME
 	avcodec_init();
 #endif
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(59, 0, 0)
 	avcodec_register_all();
+#endif
 
 	rec->codec = avcodec_find_encoder_by_name("ac3_fixed");
 	if (rec->codec == NULL)
