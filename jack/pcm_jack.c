@@ -44,6 +44,7 @@ typedef struct {
 
 	int fd;
 	int activated;		/* jack is activated? */
+	int running;		/* jack is running? */
 
 	snd_pcm_jack_port_list_t **port_names;
 	unsigned int num_ports;
@@ -207,6 +208,9 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 	snd_pcm_jack_t *jack = io->private_data;
 	snd_pcm_uframes_t xfer = 0;
 	unsigned int channel;
+
+	if (!jack->running)
+		return 0;
 	
 	for (channel = 0; channel < io->channels; channel++) {
 		jack->areas[channel].addr = 
@@ -365,7 +369,9 @@ static int snd_pcm_jack_prepare(snd_pcm_ioplug_t *io)
 
 static int snd_pcm_jack_start(snd_pcm_ioplug_t *io)
 {
-	(void)io;
+	snd_pcm_jack_t *jack = io->private_data;
+
+	jack->running = jack->activated;
 	/*
 	 * Since the processing of jack_activate() and jack_connect() take a
 	 * while longer, snd_pcm_jack_start() was blocked.
@@ -382,7 +388,9 @@ static int snd_pcm_jack_start(snd_pcm_ioplug_t *io)
 
 static int snd_pcm_jack_stop(snd_pcm_ioplug_t *io)
 {
-	(void)io;
+	snd_pcm_jack_t *jack = io->private_data;
+
+	jack->running = 0;
 	return 0;
 }
 
@@ -394,6 +402,7 @@ static int snd_pcm_jack_hw_free(snd_pcm_ioplug_t *io)
 		jack_deactivate(jack->client);
 		jack->activated = 0;
 	}
+	jack->running = 0;
 #if 0
 	unsigned i;
 	for (i = 0; i < io->channels; i++) {
