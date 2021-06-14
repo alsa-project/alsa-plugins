@@ -28,6 +28,7 @@
 #include <jack/jack.h>
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
+#include <pthread.h>
 
 #define MAX_PERIODS_MULTIPLE 64
 
@@ -44,6 +45,7 @@ typedef struct {
 
 	int fd;
 	int activated;		/* jack is activated? */
+	pthread_mutex_t running_mutex;
 	int running;		/* jack is running? */
 
 	snd_pcm_jack_port_list_t **port_names;
@@ -160,6 +162,7 @@ static void snd_pcm_jack_free(snd_pcm_jack_t *jack)
 		free(jack->port_names);
 		jack->port_names = NULL;
 	}
+	pthread_mutex_destroy (&jack->running_mutex);
 	if (jack->fd >= 0)
 		close(jack->fd);
 	if (jack->io.poll_fd >= 0)
@@ -209,8 +212,17 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 	snd_pcm_uframes_t xfer = 0;
 	unsigned int channel;
 
-	if (!jack->running)
+	if (pthread_mutex_trylock (&jack->running_mutex) == EBUSY) {
+		/* Note that locking should only ever fail if
+		 * snd_pcm_jack_start or snd_pcm_jack_stop is called at the
+		 * same time, in which case dropping the current buffer is not
+		 * an issue. */
 		return 0;
+	}
+	if (!jack->running) {
+		pthread_mutex_unlock (&jack->running_mutex);
+		return 0;
+	}
 	
 	for (channel = 0; channel < io->channels; channel++) {
 		jack->areas[channel].addr = 
@@ -271,6 +283,8 @@ snd_pcm_jack_process_cb(jack_nframes_t nframes, snd_pcm_ioplug_t *io)
 	}
 
 	pcm_poll_unblock_check(io); /* unblock socket for polling if needed */
+
+	pthread_mutex_unlock (&jack->running_mutex);
 
 	return 0;
 }
@@ -370,8 +384,9 @@ static int snd_pcm_jack_prepare(snd_pcm_ioplug_t *io)
 static int snd_pcm_jack_start(snd_pcm_ioplug_t *io)
 {
 	snd_pcm_jack_t *jack = io->private_data;
-
-	jack->running = jack->activated;
+	pthread_mutex_lock (&jack->running_mutex);
+	jack->running = 1;
+	pthread_mutex_unlock (&jack->running_mutex);
 	/*
 	 * Since the processing of jack_activate() and jack_connect() take a
 	 * while longer, snd_pcm_jack_start() was blocked.
@@ -389,8 +404,9 @@ static int snd_pcm_jack_start(snd_pcm_ioplug_t *io)
 static int snd_pcm_jack_stop(snd_pcm_ioplug_t *io)
 {
 	snd_pcm_jack_t *jack = io->private_data;
-
+	pthread_mutex_lock (&jack->running_mutex);
 	jack->running = 0;
+	pthread_mutex_unlock (&jack->running_mutex);
 	return 0;
 }
 
@@ -402,7 +418,6 @@ static int snd_pcm_jack_hw_free(snd_pcm_ioplug_t *io)
 		jack_deactivate(jack->client);
 		jack->activated = 0;
 	}
-	jack->running = 0;
 #if 0
 	unsigned i;
 	for (i = 0; i < io->channels; i++) {
@@ -556,6 +571,8 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 	jack = calloc(1, sizeof(*jack));
 	if (!jack)
 		return -ENOMEM;
+
+	pthread_mutex_init (&jack->running_mutex, NULL);
 
 	jack->fd = -1;
 	jack->io.poll_fd = -1;
