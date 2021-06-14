@@ -41,7 +41,7 @@
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(53, 34, 0)
 #include <libavutil/channel_layout.h>
 #include <libavutil/mem.h>
-#define USE_AVCODEC_FRAME
+#define USE_AVCODEC_FRAME 1
 #endif
 
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 93, 0)
@@ -83,12 +83,15 @@ struct a52_ctx {
 	snd_pcm_t *slave;
 	AVCodec *codec;
 	AVCodecContext *avctx;
+	snd_pcm_format_t src_format;
+	unsigned int src_sample_bits;
+	unsigned int src_sample_bytes;
 	snd_pcm_format_t format;
 	int av_format;
 	unsigned int channels;
 	unsigned int rate;
 	unsigned int bitrate;
-	short *inbuf;
+	void *inbuf;
 	unsigned char *outbuf;
 	int outbuf_size;
 	snd_pcm_uframes_t transfer;
@@ -150,8 +153,8 @@ static int do_encode(struct a52_ctx *rec)
 static int do_encode(struct a52_ctx *rec)
 {
 	int ret = avcodec_encode_audio(rec->avctx, rec->outbuf + 8,
-				    rec->outbuf_size - 8,
-				    rec->inbuf);
+				       rec->outbuf_size - 8,
+				       rec->inbuf);
 	if (ret < 0)
 		return -EINVAL;
 
@@ -221,8 +224,8 @@ static void clear_remaining_planar_data(snd_pcm_ioplug_t *io)
 	unsigned int i;
 
 	for (i = 0; i < io->channels; i++)
-		memset(rec->frame->data[i] + rec->filled * 2, 0,
-		       (rec->avctx->frame_size - rec->filled) * 2);
+		memset(rec->frame->data[i] + rec->filled * rec->src_sample_bytes, 0,
+		       (rec->avctx->frame_size - rec->filled) * rec->src_sample_bytes);
 }
 #else
 #define clear_remaining_planar_data(io) /*NOP*/
@@ -240,8 +243,8 @@ static int a52_drain(snd_pcm_ioplug_t *io)
 		if (use_planar(rec))
 			clear_remaining_planar_data(io);
 		else {
-			memset(rec->inbuf + rec->filled * io->channels, 0,
-			       (rec->avctx->frame_size - rec->filled) * io->channels * 2);
+			memset(rec->inbuf + rec->filled * io->channels * rec->src_sample_bytes, 0,
+			       (rec->avctx->frame_size - rec->filled) * io->channels * rec->src_sample_bytes);
 		}
 		err = convert_data(rec);
 		if (err < 0)
@@ -255,7 +258,8 @@ static int a52_drain(snd_pcm_ioplug_t *io)
 }
 
 /* check whether the areas consist of a continuous interleaved stream */
-static int check_interleaved(const snd_pcm_channel_area_t *areas,
+static int check_interleaved(struct a52_ctx *rec,
+			     const snd_pcm_channel_area_t *areas,
 			     unsigned int channels)
 {
 	unsigned int ch;
@@ -265,8 +269,8 @@ static int check_interleaved(const snd_pcm_channel_area_t *areas,
 
 	for (ch = 0; ch < channels; ch++) {
 		if (areas[ch].addr != areas[0].addr ||
-		    areas[ch].first != ch * 16 ||
-		    areas[ch].step != channels * 16)
+		    areas[ch].first != ch * rec->src_sample_bits ||
+		    areas[ch].step != channels * rec->src_sample_bits)
 			return 0;
 	}
 	return 1;
@@ -284,8 +288,7 @@ static int fill_data(snd_pcm_ioplug_t *io,
 {
 	struct a52_ctx *rec = io->private_data;
 	unsigned int len = rec->avctx->frame_size - rec->filled;
-	short *src, *dst;
-	unsigned int src_step;
+	void *_dst;
 	int err;
 	static unsigned int ch_index[3][6] = {
 		{ 0, 1 },
@@ -311,13 +314,13 @@ static int fill_data(snd_pcm_ioplug_t *io,
 	if (size > len)
 		size = len;
 
-	dst = rec->inbuf + rec->filled * io->channels;
+	_dst = rec->inbuf + rec->filled * io->channels * rec->src_sample_bytes;
 	if (!use_planar(rec) && interleaved) {
-		memcpy(dst, areas->addr + offset * io->channels * 2,
-		       size * io->channels * 2);
-	} else {
-		unsigned int i, ch, dst_step;
-		short *dst1;
+		memcpy(_dst, areas->addr + offset * io->channels * rec->src_sample_bytes,
+		       size * io->channels * rec->src_sample_bytes);
+	} else if (rec->src_sample_bits == 16) {
+		unsigned int i, ch, src_step, dst_step;
+		short *src, *dst = _dst, *dst1;
 
 		/* flatten copy to n-channel interleaved */
 		dst_step = io->channels;
@@ -328,8 +331,8 @@ static int fill_data(snd_pcm_ioplug_t *io,
 					(ap->first + offset * ap->step) / 8);
 
 #ifdef USE_AVCODEC_FRAME
-			if (use_planar(rec)) {
-				memcpy(rec->frame->data[ch], src, size * 2);
+			if (use_planar(rec) && !interleaved) {
+				memcpy(rec->frame->data[ch] + rec->filled, src, size * 2);
 				continue;
 			}
 #endif
@@ -341,6 +344,34 @@ static int fill_data(snd_pcm_ioplug_t *io,
 				dst1 += dst_step;
 			}
 		}
+	} else if (rec->src_sample_bits == 32) {
+		unsigned int i, ch, src_step, dst_step;
+		int *src, *dst = _dst, *dst1;
+
+		/* flatten copy to n-channel interleaved */
+		dst_step = io->channels;
+		for (ch = 0; ch < io->channels; ch++, dst++) {
+			const snd_pcm_channel_area_t *ap;
+			ap = &areas[ch_index[io->channels / 2 - 1][ch]];
+			src = (int *)(ap->addr +
+					(ap->first + offset * ap->step) / 8);
+
+#ifdef USE_AVCODEC_FRAME
+			if (use_planar(rec) && !interleaved) {
+				memcpy(rec->frame->data[ch] + rec->filled, src, size * 4);
+				continue;
+			}
+#endif
+			dst1 = dst;
+			src_step = ap->step / 32; /* in word */
+			for (i = 0; i < size; i++) {
+				*dst1 = *src;
+				src += src_step;
+				dst1 += dst_step;
+			}
+		}
+	} else {
+		return -EIO;
 	}
 	rec->filled += size;
 	if (rec->filled == rec->avctx->frame_size) {
@@ -363,7 +394,7 @@ static snd_pcm_sframes_t a52_transfer(snd_pcm_ioplug_t *io,
 	struct a52_ctx *rec = io->private_data;
 	snd_pcm_sframes_t result = 0;
 	int err = 0;
-	int interleaved = check_interleaved(areas, io->channels);
+	int interleaved = check_interleaved(rec, areas, io->channels);
 
 	do {
 		err = fill_data(io, areas, offset, size, interleaved);
@@ -640,9 +671,9 @@ static int alloc_input_buffer(snd_pcm_ioplug_t *io)
 	rec->frame->channel_layout = rec->avctx->channel_layout;
 #endif
 	rec->frame->nb_samples = rec->avctx->frame_size;
-	rec->inbuf = (short *)rec->frame->data[0];
+	rec->inbuf = rec->frame->data[0];
 #else
-	rec->inbuf = malloc(rec->avctx->frame_size * 2 * io->channels);
+	rec->inbuf = malloc(rec->avctx->frame_size * io->channels * rec->src_sample_bytes);
 #endif
 	if (!rec->inbuf)
 		return -ENOMEM;
@@ -838,8 +869,20 @@ static int a52_set_hw_constraint(struct a52_ctx *rec)
 		SND_PCM_ACCESS_MMAP_NONINTERLEAVED,
 		SND_PCM_ACCESS_RW_NONINTERLEAVED
 	};
-	unsigned int formats[] = { SND_PCM_FORMAT_S16 };
+	static struct format {
+		unsigned int av;
+		snd_pcm_format_t alib;
+	} formats[] = {
+		{ .av = AV_SAMPLE_FMT_S16, .alib = SND_PCM_FORMAT_S16 },
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(52, 95, 0) && USE_AVCODEC_FRAME
+		{ .av = AV_SAMPLE_FMT_S16P, .alib = SND_PCM_FORMAT_S16 },
+		{ .av = AV_SAMPLE_FMT_S32, .alib = SND_PCM_FORMAT_S32 },
+		{ .av = AV_SAMPLE_FMT_S32P, .alib = SND_PCM_FORMAT_S32 },
+		{ .av = AV_SAMPLE_FMT_FLTP, .alib = SND_PCM_FORMAT_FLOAT }
+#endif
+	};
 	int err, dir;
+	unsigned int i, fmt;
 	snd_pcm_uframes_t buffer_max;
 	unsigned int period_bytes, max_periods;
 
@@ -856,8 +899,22 @@ static int a52_set_hw_constraint(struct a52_ctx *rec)
 	if (err < 0)
 		return err;
 
+	rec->src_format = SND_PCM_FORMAT_UNKNOWN;
+	for (i = 0; i < ARRAY_SIZE(formats); i++)
+		if (formats[i].av == rec->av_format) {
+			rec->src_format = formats[i].alib;
+			break;
+		}
+	if (rec->src_format == SND_PCM_FORMAT_UNKNOWN) {
+		SNDERR("A/V format '%s' is not supported", av_get_sample_fmt_name(rec->av_format));
+		return -EINVAL;
+	}
+	fmt = rec->src_format;
+	rec->src_sample_bits = snd_pcm_format_physical_width(rec->src_format);
+	rec->src_sample_bytes = rec->src_sample_bits / 8;
+
 	if ((err = snd_pcm_ioplug_set_param_list(&rec->io, SND_PCM_IOPLUG_HW_FORMAT,
-						 ARRAY_SIZE(formats), formats)) < 0 ||
+						 1, &fmt)) < 0 ||
 	    (err = snd_pcm_ioplug_set_param_minmax(&rec->io, SND_PCM_IOPLUG_HW_CHANNELS,
 						   rec->channels, rec->channels)) < 0 ||
 	    (err = snd_pcm_ioplug_set_param_minmax(&rec->io, SND_PCM_IOPLUG_HW_RATE,
@@ -999,6 +1056,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 		return -ENOMEM;
 	}
 
+	rec->src_format = SND_PCM_FORMAT_UNKNOWN;
 	rec->rate = rate;
 	rec->bitrate = bitrate;
 	rec->channels = channels;
