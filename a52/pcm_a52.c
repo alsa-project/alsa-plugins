@@ -332,7 +332,7 @@ static int fill_data(snd_pcm_ioplug_t *io,
 
 #ifdef USE_AVCODEC_FRAME
 			if (use_planar(rec) && !interleaved) {
-				memcpy(rec->frame->data[ch] + rec->filled, src, size * 2);
+				memcpy(rec->frame->data[ch] + rec->filled * 2, src, size * 2);
 				continue;
 			}
 #endif
@@ -358,7 +358,7 @@ static int fill_data(snd_pcm_ioplug_t *io,
 
 #ifdef USE_AVCODEC_FRAME
 			if (use_planar(rec) && !interleaved) {
-				memcpy(rec->frame->data[ch] + rec->filled, src, size * 4);
+				memcpy(rec->frame->data[ch] + rec->filled * 4, src, size * 4);
 				continue;
 			}
 #endif
