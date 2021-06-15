@@ -839,7 +839,7 @@ static int a52_set_hw_constraint(struct a52_ctx *rec)
 		SND_PCM_ACCESS_RW_NONINTERLEAVED
 	};
 	unsigned int formats[] = { SND_PCM_FORMAT_S16 };
-	int err;
+	int err, dir;
 	snd_pcm_uframes_t buffer_max;
 	unsigned int period_bytes, max_periods;
 
@@ -868,8 +868,11 @@ static int a52_set_hw_constraint(struct a52_ctx *rec)
 		return err;
 
 	snd_pcm_hw_params_get_buffer_size_max(rec->hw_params, &buffer_max);
+	dir = -1;
+	snd_pcm_hw_params_get_periods_max(rec->hw_params, &max_periods, &dir);
 	period_bytes = A52_FRAME_SIZE * 2 * rec->channels;
-	max_periods = buffer_max / A52_FRAME_SIZE;
+	if (buffer_max / A52_FRAME_SIZE < max_periods)
+		max_periods = buffer_max / A52_FRAME_SIZE;
 
 	if ((err = snd_pcm_ioplug_set_param_minmax(&rec->io, SND_PCM_IOPLUG_HW_PERIOD_BYTES,
 						   period_bytes, period_bytes)) < 0 ||
