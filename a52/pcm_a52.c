@@ -605,22 +605,23 @@ static void a52_free(struct a52_ctx *rec)
 	}
 
 #ifdef USE_AVCODEC_FRAME
-	if (rec->frame) {
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 93, 0)
+	if (rec->frame)
 		av_freep(&rec->frame->data[0]);
-		rec->inbuf = NULL;
-	}
+#endif
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(54, 28, 0)
 	av_frame_free(&rec->frame);
 #else
 	av_freep(&rec->frame);
 #endif
-#endif
+#else /* USE_AVCODEC_FRAME */
+	free(rec->inbuf);
+	rec->inbuf = NULL;
+#endif /* USE_AVCODEC_FRAME */
 
 #ifdef USE_AVCODEC_PACKET_ALLOC
 	av_packet_free(&rec->pkt);
 #endif
-	free(rec->inbuf);
-	rec->inbuf = NULL;
 	free(rec->outbuf);
 	rec->outbuf = NULL;
 }
@@ -660,17 +661,19 @@ static int alloc_input_buffer(snd_pcm_ioplug_t *io)
 	rec->frame = av_frame_alloc();
 	if (!rec->frame)
 		return -ENOMEM;
+	rec->frame->nb_samples = rec->avctx->frame_size;
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 93, 0)
+	rec->frame->format = rec->avctx->sample_fmt;
+	rec->frame->channels = rec->avctx->channels;
+	rec->frame->channel_layout = rec->avctx->channel_layout;
+	if (av_frame_get_buffer(rec->frame, 0))
+		return -ENOMEM;
+#else
 	if (av_samples_alloc(rec->frame->data, rec->frame->linesize,
 			     io->channels, rec->avctx->frame_size,
 			     rec->avctx->sample_fmt, 0) < 0)
 		return -ENOMEM;
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 93, 0)
-	rec->frame->extended_data = rec->frame->data;
-	rec->frame->format = rec->avctx->sample_fmt;
-	rec->frame->channels = rec->avctx->channels;
-	rec->frame->channel_layout = rec->avctx->channel_layout;
 #endif
-	rec->frame->nb_samples = rec->avctx->frame_size;
 	rec->inbuf = rec->frame->data[0];
 #else
 	rec->inbuf = malloc(rec->avctx->frame_size * io->channels * rec->src_sample_bytes);
