@@ -446,7 +446,7 @@ static snd_pcm_sframes_t a52_pointer(snd_pcm_ioplug_t *io)
 
 	if (avail < 0)
 		avail = 0;
-	else if (avail >= io->buffer_size)
+	else if ((snd_pcm_uframes_t)avail >= io->buffer_size)
 		avail = io->buffer_size - 1;
 
 	return (io->appl_ptr + avail) % io->buffer_size;
@@ -893,7 +893,7 @@ static int a52_set_hw_constraint(struct a52_ctx *rec)
 		SND_PCM_ACCESS_RW_NONINTERLEAVED
 	};
 	static struct format {
-		unsigned int av;
+		int av;
 		snd_pcm_format_t alib;
 	} formats[] = {
 		{ .av = AV_SAMPLE_FMT_S16, .alib = SND_PCM_FORMAT_S16 },
