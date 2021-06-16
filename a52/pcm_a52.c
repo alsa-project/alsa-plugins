@@ -802,10 +802,9 @@ static int a52_close(snd_pcm_ioplug_t *io)
 	snd_pcm_t *slave = rec->slave;
 
 	a52_free(rec);
-	if (slave) {
-		rec->slave = NULL;
+	free(rec);
+	if (slave)
 		return snd_pcm_close(slave);
-	}
 	return 0;
 }
 			      
