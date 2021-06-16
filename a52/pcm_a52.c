@@ -192,24 +192,24 @@ static int convert_data(struct a52_ctx *rec)
 /* write pending encoded data to the slave pcm */
 static int write_out_pending(snd_pcm_ioplug_t *io, struct a52_ctx *rec)
 {
-	int err, ofs = (rec->avctx->frame_size - rec->remain) * 4;
+	snd_pcm_sframes_t ret;
+	unsigned int ofs;
 
 	if (! rec->remain)
 		return 0;
 
 	while (rec->remain) {
-		err = snd_pcm_writei(rec->slave, rec->outbuf + ofs, rec->remain);
-		if (err < 0) {
-			if (err == -EPIPE)
+		ofs = (rec->avctx->frame_size - rec->remain) * 4;
+		ret = snd_pcm_writei(rec->slave, rec->outbuf + ofs, rec->remain);
+		if (ret < 0) {
+			if (ret == -EPIPE)
 				io->state = SND_PCM_STATE_XRUN;
-			if (err == -EAGAIN)
+			if (ret == -EAGAIN)
 				break;
-			return err;
-		} else if (! err)
+			return ret;
+		} else if (! ret)
 			break;
-		if (err < rec->remain)
-			ofs += (rec->remain - err) * 4;
-		rec->remain -= err;
+		rec->remain -= ret;
 	}
 	return 0;
 }
