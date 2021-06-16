@@ -545,7 +545,7 @@ static int a52_hw_free(snd_pcm_ioplug_t *io)
 /*
  * dump callback
  */
-static int a52_dump(snd_pcm_ioplug_t *io, snd_output_t *out)
+static void a52_dump(snd_pcm_ioplug_t *io, snd_output_t *out)
 {
 	struct a52_ctx *rec = io->private_data;
 	snd_pcm_t *pcm = io->pcm;
