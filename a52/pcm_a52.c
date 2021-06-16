@@ -44,7 +44,7 @@
 #define USE_AVCODEC_FRAME 1
 #endif
 
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 93, 0)
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 91, 0)
 #include <libavcodec/packet.h>
 #define USE_AVCODEC_PACKET_ALLOC
 #endif
@@ -115,7 +115,7 @@ struct a52_ctx {
 #define use_planar(rec)		0
 #endif
 
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 93, 0)
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 91, 0)
 static int do_encode(struct a52_ctx *rec)
 {
 	AVPacket *pkt = rec->pkt;
@@ -624,7 +624,7 @@ static void a52_free(struct a52_ctx *rec)
 	}
 
 #ifdef USE_AVCODEC_FRAME
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 93, 0)
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 91, 0)
 	if (rec->frame)
 		av_freep(&rec->frame->data[0]);
 #endif
@@ -681,7 +681,7 @@ static int alloc_input_buffer(snd_pcm_ioplug_t *io)
 	if (!rec->frame)
 		return -ENOMEM;
 	rec->frame->nb_samples = rec->avctx->frame_size;
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 93, 0)
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 91, 0)
 	rec->frame->format = rec->avctx->sample_fmt;
 	rec->frame->channels = rec->avctx->channels;
 	rec->frame->channel_layout = rec->avctx->channel_layout;
