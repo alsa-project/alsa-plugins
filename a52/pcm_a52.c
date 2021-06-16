@@ -952,6 +952,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 	int err;
 	const char *card = NULL;
 	const char *pcm_string = NULL;
+	const char *avcodec = NULL;
 	unsigned int rate = 48000;
 	unsigned int bitrate = 448;
 	unsigned int channels = 6;
@@ -1049,6 +1050,16 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 			}
 			continue;
 		}
+		if (strcmp(id, "avcodec") == 0) {
+			const char *str;
+			err = snd_config_get_string(n, &str);
+			if (err < 0) {
+				SNDERR("invalid type for %s", id);
+				return -EINVAL;
+			}
+			avcodec = str;
+			continue;
+		}
 		SNDERR("Unknown field %s", id);
 		return -EINVAL;
 	}
@@ -1072,9 +1083,13 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 	avcodec_register_all();
 #endif
 
-	rec->codec = avcodec_find_encoder_by_name("ac3_fixed");
-	if (rec->codec == NULL)
-		rec->codec = avcodec_find_encoder_by_name("ac3");
+	if (avcodec) {
+		rec->codec = avcodec_find_encoder_by_name(avcodec);
+	} else {
+		rec->codec = avcodec_find_encoder_by_name("ac3_fixed");
+		if (rec->codec == NULL)
+			rec->codec = avcodec_find_encoder_by_name("ac3");
+	}
 	if (rec->codec == NULL) 
 		rec->codec = avcodec_find_encoder(AV_CODEC_ID_AC3);
 	if (rec->codec == NULL) {
