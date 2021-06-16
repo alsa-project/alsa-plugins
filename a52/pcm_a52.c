@@ -553,6 +553,10 @@ static void a52_dump(snd_pcm_ioplug_t *io, snd_output_t *out)
 	snd_output_printf(out, "%s\n", io->name);
 	snd_output_printf(out, "Its setup is:\n");
 	snd_pcm_dump_setup(pcm, out);
+	snd_output_printf(out, "  %-13s: %s\n", "av_format", av_get_sample_fmt_name(rec->av_format));
+	snd_output_printf(out, "  %-13s: %i\n", "av_frame_size", rec->avctx->frame_size);
+	snd_output_printf(out, "  %-13s: %i\n", "remain", rec->remain);
+	snd_output_printf(out, "  %-13s: %i\n", "filled", rec->filled);
 	snd_output_printf(out, "Slave: ");
 	snd_pcm_dump(rec->slave, out);
 }
