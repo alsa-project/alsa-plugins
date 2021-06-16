@@ -93,6 +93,8 @@ struct a52_ctx {
 	unsigned int bitrate;
 	void *inbuf;
 	unsigned char *outbuf;
+	unsigned char *outbuf1;
+	unsigned char *outbuf2;
 	int outbuf_size;
 	snd_pcm_uframes_t transfer;
 	int remain;
@@ -130,7 +132,7 @@ static int do_encode(struct a52_ctx *rec)
 
 	if (pkt->size > rec->outbuf_size - 8)
 		return -EINVAL;
-	memcpy(rec->outbuf + 8, pkt->data, pkt->size);
+	memcpy(rec->outbuf1 + 8, pkt->data, pkt->size);
 
 	return pkt->size;
 }
@@ -138,7 +140,7 @@ static int do_encode(struct a52_ctx *rec)
 static int do_encode(struct a52_ctx *rec)
 {
 	AVPacket pkt = {
-		.data = rec->outbuf + 8,
+		.data = rec->outbuf1 + 8,
 		.size = rec->outbuf_size - 8
 	};
 	int ret, got_frame;
@@ -152,7 +154,7 @@ static int do_encode(struct a52_ctx *rec)
 #else
 static int do_encode(struct a52_ctx *rec)
 {
-	int ret = avcodec_encode_audio(rec->avctx, rec->outbuf + 8,
+	int ret = avcodec_encode_audio(rec->avctx, rec->outbuf1 + 8,
 				       rec->outbuf_size - 8,
 				       rec->inbuf);
 	if (ret < 0)
@@ -165,23 +167,28 @@ static int do_encode(struct a52_ctx *rec)
 /* convert the PCM data to A52 stream in IEC958 */
 static int convert_data(struct a52_ctx *rec)
 {
+	unsigned char *buf;
 	int out_bytes = do_encode(rec);
 
 	if (out_bytes < 0)
 		return out_bytes;
 
-	rec->outbuf[0] = 0xf8; /* sync words */
-	rec->outbuf[1] = 0x72;
-	rec->outbuf[2] = 0x4e;
-	rec->outbuf[3] = 0x1f;
-	rec->outbuf[4] = rec->outbuf[13] & 7; /* bsmod */
-	rec->outbuf[5] = 0x01; /* data type */
-	rec->outbuf[6] = ((out_bytes * 8) >> 8) & 0xff;
-	rec->outbuf[7] = (out_bytes * 8) & 0xff;
+	buf = rec->outbuf1;
+	buf[0] = 0xf8; /* sync words */
+	buf[1] = 0x72;
+	buf[2] = 0x4e;
+	buf[3] = 0x1f;
+	buf[4] = buf[13] & 7; /* bsmod */
+	buf[5] = 0x01; /* data type */
+	buf[6] = ((out_bytes * 8) >> 8) & 0xff;
+	buf[7] = (out_bytes * 8) & 0xff;
 	/* swap bytes for little-endian 16bit */
-	if (rec->format == SND_PCM_FORMAT_S16_LE)
-		swab(rec->outbuf, rec->outbuf, out_bytes + 8);
-	memset(rec->outbuf +  8 + out_bytes, 0,
+	if (rec->format == SND_PCM_FORMAT_S16_LE) {
+		swab(rec->outbuf1, rec->outbuf2, out_bytes + 8);
+		buf = rec->outbuf2;
+	}
+	rec->outbuf = buf;
+	memset(buf + 8 + out_bytes, 0,
 	       rec->outbuf_size - 8 - out_bytes);
 	rec->remain = rec->outbuf_size / 4;
 	rec->filled = 0;
@@ -641,8 +648,10 @@ static void a52_free(struct a52_ctx *rec)
 #ifdef USE_AVCODEC_PACKET_ALLOC
 	av_packet_free(&rec->pkt);
 #endif
-	free(rec->outbuf);
-	rec->outbuf = NULL;
+	free(rec->outbuf2);
+	rec->outbuf2 = NULL;
+	free(rec->outbuf1);
+	rec->outbuf1 = NULL;
 }
 
 /*
@@ -740,10 +749,16 @@ static int a52_prepare(snd_pcm_ioplug_t *io)
 #endif
 
 	rec->outbuf_size = rec->avctx->frame_size * 4;
-	rec->outbuf = malloc(rec->outbuf_size + AV_INPUT_BUFFER_PADDING_SIZE);
-	if (! rec->outbuf)
+	rec->outbuf1 = malloc(rec->outbuf_size + AV_INPUT_BUFFER_PADDING_SIZE);
+	if (! rec->outbuf1)
 		return -ENOMEM;
-	memset(rec->outbuf + rec->outbuf_size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+	memset(rec->outbuf1 + rec->outbuf_size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+
+	if (rec->format == SND_PCM_FORMAT_S16_LE) {
+		rec->outbuf2 = malloc(rec->outbuf_size);
+		if ( !rec->outbuf2)
+			return -ENOMEM;
+	}
 
 	if (alloc_input_buffer(io))
 		return -ENOMEM;
