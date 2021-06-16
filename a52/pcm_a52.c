@@ -543,6 +543,21 @@ static int a52_hw_free(snd_pcm_ioplug_t *io)
 }
 
 /*
+ * dump callback
+ */
+static int a52_dump(snd_pcm_ioplug_t *io, snd_output_t *out)
+{
+	struct a52_ctx *rec = io->private_data;
+	snd_pcm_t *pcm = io->pcm;
+
+	snd_output_printf(out, "%s\n", io->name);
+	snd_output_printf(out, "Its setup is:\n");
+	snd_pcm_dump_setup(pcm, out);
+	snd_output_printf(out, "Slave: ");
+	snd_pcm_dump(rec->slave, out);
+}
+
+/*
  * sw_params callback
  *
  * Set up slave PCM sw_params
@@ -836,6 +851,7 @@ static snd_pcm_ioplug_callback_t a52_ops = {
 	.close = a52_close,
 	.hw_params = a52_hw_params,
 	.hw_free = a52_hw_free,
+	.dump = a52_dump,
 	.sw_params = a52_sw_params,
 	.prepare = a52_prepare,
 	.drain = a52_drain,
