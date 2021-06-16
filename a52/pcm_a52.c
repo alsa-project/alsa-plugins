@@ -973,7 +973,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 	unsigned int bitrate = 448;
 	unsigned int channels = 6;
 	snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
-	char devstr[128], tmpcard[8];
+	char devstr[128], tmpcard[16];
 	struct a52_ctx *rec;
 	
 	if (stream != SND_PCM_STREAM_PLAYBACK) {
@@ -1116,7 +1116,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 
 	if (! pcm_string || pcm_string[0] == '\0') {
 		snprintf(devstr, sizeof(devstr),
-			 "iec958:{AES0 0x%x AES1 0x%x AES2 0x%x AES3 0x%x %s%s}",
+			 "iec958:{AES0 0x%x AES1 0x%x AES2 0x%x AES3 0x%x%s%s}",
 			 IEC958_AES0_CON_EMPHASIS_NONE | IEC958_AES0_NONAUDIO |
 			 IEC958_AES0_CON_NOT_COPYRIGHT,
 			 IEC958_AES1_CON_ORIGINAL | IEC958_AES1_CON_PCM_CODER,
