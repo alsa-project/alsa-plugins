@@ -40,9 +40,12 @@
 #include <alsa/pcm_rate.h>
 
 struct rate_src {
+	unsigned int version;
 	double ratio;
 	int converter;
 	unsigned int channels;
+	int in_int;
+	int out_int;
 	float *src_buf;
 	float *dst_buf;
 	SRC_STATE *state;
@@ -109,6 +112,13 @@ static int pcm_src_init(void *obj, snd_pcm_rate_info_t *info)
 	rate->data.src_ratio = rate->ratio;
 	rate->data.end_of_input = 0;
 
+#if SND_PCM_RATE_PLUGIN_VERSION >= 0x010003
+	if (rate->version >= 0x010003) {
+		rate->in_int = info->in.format == SND_PCM_FORMAT_S32;
+		rate->out_int = info->out.format == SND_PCM_FORMAT_S32;
+	}
+#endif
+
 	return 0;
 }
 
@@ -128,24 +138,61 @@ static void pcm_src_reset(void *obj)
 	src_reset(rate->state);
 }
 
-static void pcm_src_convert_s16(void *obj, int16_t *dst, unsigned int dst_frames,
-				const int16_t *src, unsigned int src_frames)
+static void do_convert(struct rate_src *rate,
+		       void *dst, unsigned int dst_frames,
+		       const void *src, unsigned int src_frames)
 {
-	struct rate_src *rate = obj;
 	unsigned int ofs;
 
 	rate->data.input_frames = src_frames;
 	rate->data.output_frames = dst_frames;
 	rate->data.end_of_input = 0;
 	
-	src_short_to_float_array(src, rate->src_buf, src_frames * rate->channels);
+	if (rate->in_int)
+		src_int_to_float_array(src, rate->src_buf, src_frames * rate->channels);
+	else
+		src_short_to_float_array(src, rate->src_buf, src_frames * rate->channels);
 	src_process(rate->state, &rate->data);
 	if (rate->data.output_frames_gen < dst_frames)
 		ofs = dst_frames - rate->data.output_frames_gen;
 	else
 		ofs = 0;
-	src_float_to_short_array(rate->dst_buf, dst + ofs * rate->channels,
-				 rate->data.output_frames_gen * rate->channels);
+	if (rate->out_int)
+		src_float_to_int_array(rate->dst_buf, dst + ofs * rate->channels * 4,
+				       rate->data.output_frames_gen * rate->channels);
+	else
+		src_float_to_short_array(rate->dst_buf, dst + ofs * rate->channels * 2,
+					 rate->data.output_frames_gen * rate->channels);
+}
+
+#if SND_PCM_RATE_PLUGIN_VERSION >= 0x010003
+static inline void *get_addr(const snd_pcm_channel_area_t *area, snd_pcm_uframes_t offset)
+{
+	return (char *)area->addr + (area->first + area->step * offset) / 8;
+}
+
+static void pcm_src_convert(void *obj,
+			    const snd_pcm_channel_area_t *dst_areas,
+			    snd_pcm_uframes_t dst_offset,
+			    unsigned int dst_frames,
+			    const snd_pcm_channel_area_t *src_areas,
+			    snd_pcm_uframes_t src_offset,
+			    unsigned int src_frames)
+{
+	struct rate_src *rate = obj;
+	const void *src = get_addr(src_areas, src_offset);
+	void *dst = get_addr(dst_areas, dst_offset);
+
+	do_convert(rate, dst, dst_frames, src, src_frames);
+}
+#endif
+
+static void pcm_src_convert_s16(void *obj, int16_t *dst, unsigned int dst_frames,
+				const int16_t *src, unsigned int src_frames)
+{
+	struct rate_src *rate = obj;
+
+	do_convert(rate, dst, dst_frames, src, src_frames);
 }
 
 static void pcm_src_close(void *obj)
@@ -167,12 +214,28 @@ static void dump(void *obj ATTRIBUTE_UNUSED, snd_output_t *out)
 }
 #endif
 
+#if SND_PCM_RATE_PLUGIN_VERSION >= 0x010003
+static int get_supported_formats(void *obj, uint64_t *in_formats,
+				 uint64_t *out_formats,
+				 unsigned int *flags)
+{
+	*in_formats = *out_formats =
+		(1ULL << SND_PCM_FORMAT_S16) |
+		(1ULL << SND_PCM_FORMAT_S32);
+	*flags = SND_PCM_RATE_FLAG_INTERLEAVED;
+	return 0;
+}
+#endif
+
 static snd_pcm_rate_ops_t pcm_src_ops = {
 	.close = pcm_src_close,
 	.init = pcm_src_init,
 	.free = pcm_src_free,
 	.reset = pcm_src_reset,
 	.adjust_pitch = pcm_src_adjust_pitch,
+#if SND_PCM_RATE_PLUGIN_VERSION >= 0x010003
+	.convert = pcm_src_convert,
+#endif
 	.convert_s16 = pcm_src_convert_s16,
 	.input_frames = input_frames,
 	.output_frames = output_frames,
@@ -181,6 +244,9 @@ static snd_pcm_rate_ops_t pcm_src_ops = {
 	.get_supported_rates = get_supported_rates,
 	.dump = dump,
 #endif
+#if SND_PCM_RATE_PLUGIN_VERSION >= 0x010003
+	.get_supported_formats = get_supported_formats,
+#endif
 };
 
 static int pcm_src_open(unsigned int version, void **objp,
@@ -188,24 +254,27 @@ static int pcm_src_open(unsigned int version, void **objp,
 {
 	struct rate_src *rate;
 
-#if SND_PCM_RATE_PLUGIN_VERSION < 0x010002
-	if (version != SND_PCM_RATE_PLUGIN_VERSION) {
-		fprintf(stderr, "Invalid rate plugin version %x\n", version);
-		return -EINVAL;
-	}
-#endif
 	rate = calloc(1, sizeof(*rate));
 	if (! rate)
 		return -ENOMEM;
+
+	rate->version = version;
 	rate->converter = type;
 
 	*objp = rate;
 #if SND_PCM_RATE_PLUGIN_VERSION >= 0x010002
-	if (version == 0x010001)
+	if (version == 0x010001) {
 		memcpy(ops, &pcm_src_ops, sizeof(snd_pcm_rate_old_ops_t));
-	else
+		return 0;
+	}
 #endif
-		*ops = pcm_src_ops;
+#if SND_PCM_RATE_PLUGIN_VERSION >= 0x010003
+	if (version == 0x010002) {
+		memcpy(ops, &pcm_src_ops, sizeof(snd_pcm_rate_v2_ops_t));
+		return 0;
+	}
+#endif
+	*ops = pcm_src_ops;
 	return 0;
 }
 
