@@ -96,11 +96,12 @@ struct a52_ctx {
 	unsigned char *outbuf1;
 	unsigned char *outbuf2;
 	int outbuf_size;
-	snd_pcm_uframes_t transfer;
 	int remain;
 	int filled;
 	unsigned int slave_period_size;
 	unsigned int slave_buffer_size;
+	snd_pcm_uframes_t pointer;
+	snd_pcm_uframes_t boundary;
 	snd_pcm_hw_params_t *hw_params;
 #ifdef USE_AVCODEC_PACKET_ALLOC
 	AVPacket *pkt;
@@ -201,9 +202,6 @@ static int write_out_pending(snd_pcm_ioplug_t *io, struct a52_ctx *rec)
 {
 	snd_pcm_sframes_t ret;
 	unsigned int ofs;
-
-	if (! rec->remain)
-		return 0;
 
 	while (rec->remain) {
 		ofs = (rec->avctx->frame_size - rec->remain) * 4;
@@ -314,9 +312,12 @@ static int fill_data(snd_pcm_ioplug_t *io,
 
 	/* If there are still frames left in outbuf, we can't
 	 * accept a full a52 frame, because this would overwrite
-	 * the frames in outbuf. */
-	if (rec->remain && len)
+	 * the frames in outbuf. This should not happen! The a52_pointer()
+	 * callback should limit the transferred frames correctly. */
+	if (rec->remain && len) {
+		SNDERR("fill data issue (remain is %i)", rec->remain);
 		len--;
+	}
 
 	if (size > len)
 		size = len;
@@ -410,7 +411,8 @@ static snd_pcm_sframes_t a52_transfer(snd_pcm_ioplug_t *io,
 		offset += (unsigned int)err;
 		size -= (unsigned int)err;
 		result += err;
-		rec->transfer += err;
+		rec->pointer += err;
+		rec->pointer %= rec->boundary;
 	} while (size);
 	return result > 0 ? result : err;
 }
@@ -423,7 +425,7 @@ static snd_pcm_sframes_t a52_transfer(snd_pcm_ioplug_t *io,
 static snd_pcm_sframes_t a52_pointer(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
-	snd_pcm_sframes_t avail;
+	snd_pcm_sframes_t avail, delay;
 	snd_pcm_state_t state;
 
 	state = snd_pcm_state(rec->slave);
@@ -432,31 +434,26 @@ static snd_pcm_sframes_t a52_pointer(snd_pcm_ioplug_t *io)
 	case SND_PCM_STATE_DRAINING:
 		break;
 	case SND_PCM_STATE_XRUN:
-	case SND_PCM_STATE_SUSPENDED:
 		return -EPIPE;
+	case SND_PCM_STATE_SUSPENDED:
+		return -ESTRPIPE;
 	default:
 		return 0;
 	}
 
-	avail = 0;
-
 	/* Write what we have from outbuf. */
 	write_out_pending(io, rec);
 
-	/* If there is anything remaining in outbuf, we can't
-	 * accept any full packets. */
-	if (rec->remain == 0)
-	{
-		/* Round the slave frames to multiples of the packet size. */
-		avail += (snd_pcm_avail_update(rec->slave) / rec->avctx->frame_size) * rec->avctx->frame_size;
-	}
-
+	avail = snd_pcm_avail(rec->slave);
 	if (avail < 0)
-		avail = 0;
-	else if ((snd_pcm_uframes_t)avail >= io->buffer_size)
-		avail = io->buffer_size - 1;
+		return avail;
 
-	return (io->appl_ptr + avail) % io->buffer_size;
+	/* get buffer delay without additional FIFO information */
+	delay = rec->slave_buffer_size - avail;
+	while (delay < 0)
+		delay += rec->slave_buffer_size;
+
+	return (rec->pointer - delay - rec->remain - rec->filled) % io->buffer_size;
 }
 
 /* set up the fixed parameters of slave PCM hw_parmas */
@@ -582,6 +579,7 @@ static int a52_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params)
 
 	snd_pcm_sw_params_get_avail_min(params, &avail_min);
 	snd_pcm_sw_params_get_start_threshold(params, &start_threshold);
+	snd_pcm_sw_params_get_boundary(params, &rec->boundary);
 
 	len = avail_min;
 	len += (int)rec->slave_buffer_size - (int)io->buffer_size;
@@ -763,7 +761,7 @@ static int a52_prepare(snd_pcm_ioplug_t *io)
 	if (alloc_input_buffer(io))
 		return -ENOMEM;
 
-	rec->transfer = 0;
+	rec->pointer = 0;
 	rec->remain = 0;
 	rec->filled = 0;
 
