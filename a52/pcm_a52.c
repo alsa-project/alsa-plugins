@@ -453,7 +453,12 @@ static snd_pcm_sframes_t a52_pointer(snd_pcm_ioplug_t *io)
 	while (delay < 0)
 		delay += rec->slave_buffer_size;
 
-	return (rec->pointer - delay - rec->remain - rec->filled) % io->buffer_size;
+	avail = rec->pointer - delay - rec->remain - rec->filled;
+#ifdef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
+	return avail % rec->boundary;
+#else
+	return avail % io->buffer_size;
+#endif
 }
 
 /* set up the fixed parameters of slave PCM hw_parmas */
@@ -1158,6 +1163,9 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 	rec->io.mmap_rw = 0;
 	rec->io.callback = &a52_ops;
 	rec->io.private_data = rec;
+#ifdef SND_PCM_IOPLUG_FLAG_BOUNDARY_WA
+	rec->io.flags = SND_PCM_IOPLUG_FLAG_BOUNDARY_WA;
+#endif
 #ifdef USE_AVCODEC_FRAME
 	rec->av_format = rec->codec->sample_fmts[0];
 	rec->is_planar = av_sample_fmt_is_planar(rec->av_format);
