@@ -166,11 +166,6 @@ static void do_convert(struct rate_src *rate,
 }
 
 #if SND_PCM_RATE_PLUGIN_VERSION >= 0x010003
-static inline void *get_addr(const snd_pcm_channel_area_t *area, snd_pcm_uframes_t offset)
-{
-	return (char *)area->addr + (area->first + area->step * offset) / 8;
-}
-
 static void pcm_src_convert(void *obj,
 			    const snd_pcm_channel_area_t *dst_areas,
 			    snd_pcm_uframes_t dst_offset,
@@ -180,8 +175,8 @@ static void pcm_src_convert(void *obj,
 			    unsigned int src_frames)
 {
 	struct rate_src *rate = obj;
-	const void *src = get_addr(src_areas, src_offset);
-	void *dst = get_addr(dst_areas, dst_offset);
+	const void *src = snd_pcm_channel_area_addr(src_areas, src_offset);
+	void *dst = snd_pcm_channel_area_addr(dst_areas, dst_offset);
 
 	do_convert(rate, dst, dst_frames, src, src_frames);
 }
