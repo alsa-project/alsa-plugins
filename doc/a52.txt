@@ -1,11 +1,17 @@
 A52 OUTPUT PLUGIN
 =================
 
-This plugin converts S16 linear format to A52 compressed stream and
-send to an SPDIF output.  It requires libavcodec for encoding the
-audio stream.
+This plugin converts S16(P), S32P, or FLTP formats to an A52 compressed
+stream and sends it to an S/PDIF output.  It requires libavcodec for
+encoding the audio stream.
 
-A PCM using this plugin can be defined like below:
+The input format is determined by the version of libavcodec it is
+compiled against and which ac3 codec libavcodec is configured to use.
+
+A global configuration, /usr/share/alsa/alsa.conf.d/60-a52-encoder.conf
+defines a52 PCMs for devices with the IEC958 non-audio status bit set.
+
+A PCM using this plugin can be manually defined like below:
 
 	pcm.myout {
 		type a52
@@ -61,5 +67,6 @@ For using slavepcm option,
 	}
 
 
-The plugin reads always S16 format (i.e. native-endian) as input, so
-you'd need plug layer appropriately to covert it.
+The plugin only reads the format determined by libavcodec (native-
+endian S16(P), S32P or FLTP) as input, so you'll need a plug layer to 
+appropriately convert it.
