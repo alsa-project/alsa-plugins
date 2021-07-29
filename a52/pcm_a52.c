@@ -1179,7 +1179,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(a52)
 
 	if ((err = a52_set_hw_constraint(rec)) < 0) {
 		snd_pcm_ioplug_delete(&rec->io);
-		goto error;
+		return err;
 	}
 
 	*pcmp = rec->io.pcm;
