@@ -474,7 +474,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(usb_stream)
 		if (snd_config_get_id(n, &id) < 0)
 			continue;
 
-		if (strcmp(id, "comment") == 0 || strcmp(id, "type") == 0)
+		if (strcmp(id, "comment") == 0 || strcmp(id, "type") == 0 || strcmp(id, "hint") == 0)
 			continue;
 		if (strcmp(id, "card") == 0) {
 			card = snd_config_get_card(n);
