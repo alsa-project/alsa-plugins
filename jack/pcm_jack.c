@@ -405,6 +405,13 @@ static int snd_pcm_jack_hw_free(snd_pcm_ioplug_t *io)
 	return 0;
 }
 
+static int snd_pcm_jack_sw_params(snd_pcm_ioplug_t *io, snd_pcm_sw_params_t *params)
+{
+	snd_pcm_jack_t *jack = io->private_data;
+	snd_pcm_sw_params_get_avail_min(params, &jack->min_avail);
+	return 0;
+}
+
 static snd_pcm_ioplug_callback_t jack_pcm_callback = {
 	.close = snd_pcm_jack_close,
 	.start = snd_pcm_jack_start,
@@ -413,6 +420,7 @@ static snd_pcm_ioplug_callback_t jack_pcm_callback = {
 	.hw_free = snd_pcm_jack_hw_free,
 	.prepare = snd_pcm_jack_prepare,
 	.poll_revents = snd_pcm_jack_poll_revents,
+	.sw_params = snd_pcm_jack_sw_params,
 };
 
 #define ARRAY_SIZE(ary)	(sizeof(ary)/sizeof(ary[0]))
