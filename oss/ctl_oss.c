@@ -22,11 +22,18 @@
  * TODO: implement the pseudo poll with thread (and pipe as pollfd)?
  */
 
+#include "config.h"
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
+#if defined(__linux__)
 #include <linux/soundcard.h>
+#elif HAVE_SYS_SOUNDCARD_H
+#include <sys/soundcard.h>
+#elif HAVE_SOUNDCARD_H
+#include <soundcard.h>
+#endif
 
 typedef struct snd_ctl_oss {
 	snd_ctl_ext_t ext;
