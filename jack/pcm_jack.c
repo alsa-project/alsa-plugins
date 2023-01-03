@@ -23,7 +23,6 @@
 #define _GNU_SOURCE
 #include <stdbool.h>
 #include <errno.h>
-#include <byteswap.h>
 #include <sys/shm.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -603,7 +602,11 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 	}
 
 	if (client_name == NULL) {
+#if defined(__linux__)
 		const char *pname = program_invocation_short_name;
+#else
+		const char *pname = getprogname();
+#endif
 		if (!pname[0]) {
 			pname = "alsa-jack";
 		}
