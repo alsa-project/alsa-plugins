@@ -24,6 +24,10 @@
 
 #include <pulse/pulseaudio.h>
 
+#ifndef EBADFD
+#define EBADFD EBADF
+#endif
+
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 
 typedef struct snd_pulse {

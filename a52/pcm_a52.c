@@ -28,6 +28,10 @@
 #include <libavcodec/avcodec.h>
 #include <libavutil/avutil.h>
 
+#ifndef ESTRPIPE
+#define ESTRPIPE EPIPE
+#endif
+
 /* some compatibility wrappers */
 #ifndef AV_VERSION_INT
 #define AV_VERSION_INT(a, b, c) (((a) << 16) | ((b) << 8) | (c))
