@@ -18,11 +18,18 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include "config.h"
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
+#if defined(__linux__)
 #include <linux/soundcard.h>
+#elif HAVE_SYS_SOUNDCARD_H
+#include <sys/soundcard.h>
+#elif HAVE_SOUNDCARD_H
+#include <soundcard.h>
+#endif
 
 typedef struct snd_pcm_oss {
 	snd_pcm_ioplug_t io;
