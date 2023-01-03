@@ -17,14 +17,25 @@ AC_HEADER_STDC
 CC_NOUNDEFINED
 
 PKG_CHECK_MODULES(ALSA, alsa >= 1.1.6)
-AC_CHECK_LIB(asound, snd_pcm_ioplug_create,,
+case $host_os in
+netbsd* | freebsd* | dragonfly* | openbsd*)
+  AC_CHECK_LIB(asound, snd_pcm_ioplug_create,,
+	     AC_ERROR([*** libasound has no external plugin SDK]))
+  ;;
+*)
+  AC_CHECK_LIB(asound, snd_pcm_ioplug_create,,
 	     AC_ERROR([*** libasound has no external plugin SDK]), -ldl)
+  ;;
+esac
 
 AC_ARG_ENABLE([oss],
       AS_HELP_STRING([--disable-oss], [Disable building of OSS plugin]))
-AS_IF([test "x$enable_oss" != "xno"],
-      [AM_CONDITIONAL(HAVE_OSS, true)],
-      [AM_CONDITIONAL(HAVE_OSS, false)])
+if test "x$enable_oss" != "xno"; then
+      AM_CONDITIONAL(HAVE_OSS, true)
+      AC_CHECK_HEADERS([sys/soundcard.h soundcard.h])
+else
+      AM_CONDITIONAL(HAVE_OSS, false)
+fi
 
 AC_ARG_ENABLE([mix],
       AS_HELP_STRING([--disable-mix], [Disable building of upmix and vdownmix plugins]))
