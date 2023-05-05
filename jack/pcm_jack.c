@@ -602,7 +602,7 @@ static int snd_pcm_jack_open(snd_pcm_t **pcmp, const char *name,
 	}
 
 	if (client_name == NULL) {
-#if defined(__linux__)
+#if defined(_GNU_SOURCE)
 		const char *pname = program_invocation_short_name;
 #else
 		const char *pname = getprogname();
