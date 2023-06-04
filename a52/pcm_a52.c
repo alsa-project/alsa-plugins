@@ -29,7 +29,7 @@
 #include <libavutil/avutil.h>
 
 #ifndef ESTRPIPE
-#define ESTRPIPE EPIPE
+#define ESTRPIPE ESPIPE
 #endif
 
 /* some compatibility wrappers */
