@@ -19,7 +19,6 @@
  */
 
 #define _GNU_SOURCE
-#include <byteswap.h>
 #include <sys/mman.h>
 #include <sys/shm.h>
 #include <sys/ioctl.h>
