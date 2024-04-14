@@ -78,6 +78,9 @@
 #define av_frame_free avcodec_free_frame
 #endif
 
+#define HAVE_AVCODEC_FREE_CONTEXT (LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55, 69, 100))
+#define HAVE_CH_LAYOUT (LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(57, 28, 100))
+
 struct a52_ctx {
 	snd_pcm_ioplug_t io;
 	snd_pcm_t *slave;
@@ -628,7 +631,11 @@ static int a52_stop(snd_pcm_ioplug_t *io)
 static void a52_free(struct a52_ctx *rec)
 {
 	if (rec->avctx) {
-		avcodec_close(rec->avctx);
+		#if HAVE_AVCODEC_FREE_CONTEXT
+			avcodec_free_context(&rec->avctx);
+		#else
+			avcodec_close(rec->avctx);
+		#endif
 		av_free(rec->avctx);
 		rec->avctx = NULL;
 	}
@@ -667,6 +674,21 @@ static void a52_free(struct a52_ctx *rec)
 static void set_channel_layout(snd_pcm_ioplug_t *io)
 {
 	struct a52_ctx *rec = io->private_data;
+#if HAVE_CH_LAYOUT
+	switch (io->channels) {
+	case 2:
+		rec->avctx->ch_layout = (AVChannelLayout)AV_CHANNEL_LAYOUT_STEREO;
+		break;
+	case 4:
+		rec->avctx->ch_layout = (AVChannelLayout)AV_CHANNEL_LAYOUT_QUAD;
+		break;
+	case 6:
+		rec->avctx->ch_layout = (AVChannelLayout)AV_CHANNEL_LAYOUT_5POINT1;
+		break;
+	default:
+		break;
+	}
+#else
 	switch (io->channels) {
 	case 2:
 		rec->avctx->channel_layout = AV_CH_LAYOUT_STEREO;
@@ -680,6 +702,7 @@ static void set_channel_layout(snd_pcm_ioplug_t *io)
 	default:
 		break;
 	}
+#endif
 }
 #else
 #define set_channel_layout(io) /* NOP */
@@ -695,8 +718,12 @@ static int alloc_input_buffer(snd_pcm_ioplug_t *io)
 	rec->frame->nb_samples = rec->avctx->frame_size;
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 91, 0)
 	rec->frame->format = rec->avctx->sample_fmt;
+#if HAVE_CH_LAYOUT
+	av_channel_layout_from_mask(&rec->frame->ch_layout, rec->avctx->ch_layout.u.mask);
+#else
 	rec->frame->channels = rec->avctx->channels;
 	rec->frame->channel_layout = rec->avctx->channel_layout;
+#endif
 	if (av_frame_get_buffer(rec->frame, 0))
 		return -ENOMEM;
 #else
@@ -731,7 +758,11 @@ static int a52_prepare(snd_pcm_ioplug_t *io)
 
 	rec->avctx->bit_rate = rec->bitrate * 1000;
 	rec->avctx->sample_rate = io->rate;
+#if HAVE_CH_LAYOUT
+	rec->avctx->ch_layout.nb_channels = io->channels;
+#else
 	rec->avctx->channels = io->channels;
+#endif
 	rec->avctx->sample_fmt = rec->av_format;
 
 	set_channel_layout(io);

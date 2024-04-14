@@ -18,11 +18,24 @@
 #include <alsa/pcm_rate.h>
 
 #include <libswresample/swresample.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/avutil.h>
 #include <libavutil/channel_layout.h>
 #include <libavutil/opt.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/samplefmt.h>
 
+/* some compatibility wrappers */
+#ifndef AV_VERSION_INT
+#define AV_VERSION_INT(a, b, c) (((a) << 16) | ((b) << 8) | (c))
+#endif
+#ifndef LIBAVUTIL_VERSION_INT
+#define LIBAVUTIL_VERSION_INT  AV_VERSION_INT(LIBAVUTIL_VERSION_MAJOR, \
+LIBAVUTIL_VERSION_MINOR, \
+LIBAVUTIL_VERSION_MICRO)
+#endif
+
+#define HAVE_CH_LAYOUT (LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(57, 28, 100))
 
 static unsigned int filter_size = 16;
 
@@ -95,10 +108,17 @@ static int pcm_src_init(void *obj, snd_pcm_rate_info_t *info)
 		if (!rate->avr)
 			return -ENOMEM;
 
+#if HAVE_CH_LAYOUT
+		AVChannelLayout layout;
+		av_channel_layout_default(&layout, rate->channels);
+		av_opt_set_chlayout(rate->avr, "in_chlayout", &layout, 0);
+		av_opt_set_chlayout(rate->avr, "out_chlayout", &layout, 0);
+#else
 		av_opt_set_channel_layout(rate->avr, "in_channel_layout",
-					  av_get_default_channel_layout(rate->channels), 0);
+						av_get_default_channel_layout(rate->channels), 0);
 		av_opt_set_channel_layout(rate->avr, "out_channel_layout",
-					  av_get_default_channel_layout(rate->channels), 0);
+						av_get_default_channel_layout(rate->channels), 0);
+#endif
 		av_opt_set_int(rate->avr, "in_sample_rate", rate->in_rate, 0);
 		av_opt_set_int(rate->avr, "out_sample_rate", rate->out_rate, 0);
 		fmt = support_multi_format(rate) ? info->in.format : SND_PCM_FORMAT_S16;
