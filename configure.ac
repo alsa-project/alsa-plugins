@@ -1,5 +1,5 @@
 AC_PREREQ(2.59)
-AC_INIT(alsa-plugins, 1.2.7.1)
+AC_INIT(alsa-plugins, 1.2.12)
 AM_INIT_AUTOMAKE
 AC_PREFIX_DEFAULT(/usr)
 
