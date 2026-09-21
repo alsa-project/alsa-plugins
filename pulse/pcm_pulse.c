@@ -396,7 +396,7 @@ static int pulse_delay(snd_pcm_ioplug_t * io, snd_pcm_sframes_t * delayp)
 
 		err = pa_stream_get_latency(pcm->stream, &lat, NULL);
 		if (err) {
-			if (err != PA_ERR_NODATA) {
+			if (err != -PA_ERR_NODATA) {
 				err = -EIO;
 				goto finish;
 			}
